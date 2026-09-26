@@ -1,0 +1,338 @@
+.game-dialog {
+  width: min(450px, 90vw);
+  max-height: 85dvh;
+  overflow: auto;
+  background: #0b0712f7;
+  color: #eee8da;
+  border: 3px solid #d0c4dd;
+  box-shadow: 6px 6px 0 #000;
+  padding: 32px;
+  font-size: 24px;
+  text-align: center;
+  scrollbar-width: thin;
+  scrollbar-color: #88709b #0b0712;
+}
+.game-dialog::backdrop {
+  background: #020107bc;
+}
+.game-dialog h1 {
+  font-weight: 400;
+  font-size: 38px;
+  letter-spacing: 4px;
+  margin: 0 0 10px;
+}
+.game-dialog h2 {
+  font-size: 34px;
+  font-weight: 400;
+  color: var(--gold);
+}
+#mode-label {
+  font-size: 20px;
+  color: var(--muted);
+  margin: 0 0 25px;
+}
+.menu-options {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.menu-options button {
+  font-size: 26px;
+  padding: 9px;
+  min-height: 44px;
+}
+.menu-options button:hover {
+  color: var(--gold);
+}
+.menu-options button:hover:before {
+  content: '> ';
+}
+.menu-note {
+  color: #a697b6;
+  font-size: 18px;
+  margin: 24px 0 0;
+}
+.info-dialog {
+  width: min(760px, 92vw);
+  text-align: left;
+  padding: 30px 36px;
+}
+.info-dialog p {
+  font-size: 24px;
+  line-height: 1.3;
+  color: #d0c3db;
+}
+.dialog-close {
+  position: absolute;
+  right: 9px;
+  top: 6px;
+  font-size: 32px;
+  width: 44px;
+  height: 44px;
+}
+#deck-gallery {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+  margin-top: 25px;
+}
+#deck-gallery figcaption {
+  font-size: 17px;
+  text-align: center;
+  line-height: 1.1;
+  margin-top: 7px;
+  color: #d8c5ae;
+}
+@media (pointer: coarse) {
+  .desktop-prompt {
+    display: none;
+  }
+  .touch-prompt {
+    display: inline;
+  }
+  .deck-hint {
+    opacity: 0.65;
+  }
+}
+@media (max-aspect-ratio: 1/1) {
+  #game {
+    width: 100vw;
+    height: 100dvh;
+    container-type: size;
+  }
+  .world {
+    background: linear-gradient(#0c0715 0%, #0f0a1c 55%, #1b1230 75%, #100a1c 100%);
+  }
+  .interior-scene {
+    width: 140%;
+    height: auto;
+    aspect-ratio: 1.792;
+    left: -20%;
+    top: 5%;
+    bottom: auto;
+    mask-image: linear-gradient(#000 0%, #000 85%, transparent 100%);
+  }
+  .exterior-scene .scene-image,
+  .entrance-video {
+    object-fit: cover;
+  }
+  .game-controls {
+    top: 12px;
+    right: 12px;
+    gap: 5px;
+  }
+  .icon-button {
+    width: 34px;
+    height: 34px;
+  }
+  #preview-badge {
+    font-size: 14px;
+  }
+  #enter {
+    font-size: 25px;
+    top: 80%;
+    letter-spacing: 1px;
+  }
+  .speech {
+    top: 44%;
+    left: 8%;
+    width: 84%;
+    max-height: 28%;
+    overflow: auto;
+  }
+  #dialogue {
+    font-size: 26px;
+    line-height: 1.08;
+    margin-left: 17px;
+  }
+  .speech:before {
+    font-size: 26px;
+  }
+  #speech-title {
+    font-size: 21px;
+    margin-left: 17px;
+    margin-bottom: 6px;
+  }
+  .speech-actions {
+    min-height: 32px;
+    gap: 20px;
+  }
+  .speech-actions button {
+    min-height: 32px;
+    font-size: 22px;
+  }
+  #question-form {
+    left: 7%;
+    width: 86%;
+    bottom: 13%;
+  }
+  .question-shell {
+    padding: 12px;
+    gap: 8px;
+  }
+  textarea {
+    font-size: 25px;
+    min-height: 61px;
+  }
+  #submit-question {
+    font-size: 30px;
+  }
+  #table {
+    --table-tilt: 30deg;
+  }
+  .deck {
+    left: 7%;
+    width: 17%;
+    bottom: 12%;
+  }
+  .spread {
+    left: 31%;
+    right: 5%;
+    bottom: 12%;
+    gap: 7%;
+  }
+  .card-slot {
+    width: 28%;
+  }
+  .deck-hint {
+    font-size: 18px;
+    bottom: -26px;
+  }
+  .card-slot > span {
+    font-size: 26px;
+  }
+  #result-choices {
+    left: 3%;
+    right: 3%;
+    bottom: 2%;
+    gap: 10px;
+  }
+  .game-choice {
+    font-size: 22px;
+    padding: 7px 2px;
+  }
+  .game-choice:before {
+    margin-right: 4px;
+  }
+  #error-box {
+    left: 5%;
+    right: 5%;
+    bottom: 1%;
+    font-size: 19px;
+  }
+  .toast {
+    font-size: 21px;
+    bottom: 3%;
+    max-width: 90%;
+  }
+  #skip-entry {
+    font-size: 19px;
+  }
+  .vignette {
+    background: radial-gradient(ellipse at 50% 40%, transparent 35%, #05030e50 100%);
+  }
+  #deck-gallery {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px 14px;
+  }
+  .info-dialog {
+    padding: 20px 25px;
+  }
+  .info-dialog p {
+    font-size: 22px;
+  }
+}
+@media (max-aspect-ratio: 1/1) and (min-width: 600px) {
+  #table {
+    --table-tilt: 45deg;
+  }
+  .interior-scene {
+    width: 110%;
+    left: -5%;
+    top: 0;
+  }
+  .speech {
+    top: 52%;
+    left: 12%;
+    width: 76%;
+    max-height: 23%;
+  }
+  .deck {
+    width: 13%;
+    left: 13%;
+    bottom: 7%;
+  }
+  .spread {
+    left: 35%;
+    right: 13%;
+    bottom: 7%;
+    max-width: 430px;
+  }
+  .card-slot {
+    width: 23%;
+  }
+  #question-form {
+    left: 15%;
+    width: 70%;
+    bottom: 12%;
+  }
+}
+@media (max-height: 600px) and (min-aspect-ratio: 1/1) {
+  .speech {
+    top: 19%;
+    max-height: 45%;
+  }
+  #dialogue {
+    font-size: clamp(18px, 2.1cqw, 28px);
+  }
+  #speech-title {
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+  .speech-actions button {
+    font-size: 19px;
+    min-height: 25px;
+  }
+  .game-controls {
+    top: 6px;
+  }
+  .icon-button {
+    width: 30px;
+    height: 30px;
+  }
+  textarea {
+    font-size: 21px;
+    min-height: 44px;
+  }
+  .question-shell {
+    padding: 6px 10px;
+  }
+  #question-form {
+    bottom: 5%;
+  }
+  .game-choice {
+    font-size: 20px;
+    min-height: 30px;
+  }
+  #result-choices {
+    bottom: 0;
+  }
+  #enter {
+    font-size: 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *:before,
+  *:after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .scene-image:is(video) {
+    display: none;
+  }
+  .motes {
+    display: none;
+  }
+}

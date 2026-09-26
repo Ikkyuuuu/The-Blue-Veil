@@ -1,0 +1,87 @@
+# Local security findings and operational records (never publish).
+/.private/
+/AWS_DISCOVERY.md
+/SECURITY_PLAN.md
+*.private.*
+*.local
+*.local.*
+
+# Environment files. Only explicitly named, placeholder-only examples belong in Git.
+.env
+.env.*
+*.env
+*.env.*
+!.env.example
+!.env.*.example
+!*.env.example
+
+# Credentials, private keys and local authentication caches.
+.aws/
+.ssh/
+.secrets/
+secrets/
+.git-credentials
+.netrc
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+
+# Local agent state and developer settings.
+.codex/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# Dependencies, builds, caches and reports.
+node_modules/
+/dist/
+/build/
+/coverage/
+/.vite/
+/.cache/
+/playwright-report/
+/test-results/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.log
+*.encoding.mp4
+
+# Generated media QA and source captures can contain personal paths or data.
+# Reviewed, licensed assets under public/assets/ are intentionally NOT ignored.
+/artifacts/
+/asset-sources/
+/captures/
+# Supplied deck is usable locally; exclude originals until redistribution rights
+# are verified. Keep its portable import manifest and license notes in Git.
+/public/assets/deck/*.png
+
+# Infrastructure outputs and state may contain account identifiers or secrets.
+cdk.out/
+cdk.context.json
+cdk-outputs*.json
+.aws-sam/
+.serverless/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+
+# Keep source, infrastructure templates, lockfiles, AGENTS.md, SECURITY.md and
+# sanitized documentation versioned. Do not hide all JSON/YAML or media files.
