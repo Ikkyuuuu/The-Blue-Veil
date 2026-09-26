@@ -1,4 +1,60 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+async function candleFlames(page: Page) {
+  const scene = (await page.locator('.interior-scene').boundingBox())!;
+  const points = await page.locator('.scene-candle').evaluateAll((candles) =>
+    candles.map((candle) => {
+      const style = getComputedStyle(candle);
+      return {
+        x: parseFloat(style.getPropertyValue('--candle-x')) / 100,
+        y: parseFloat(style.getPropertyValue('--candle-y')) / 100,
+      };
+    }),
+  );
+  const flames = [];
+  for (const point of points) {
+    const x = Math.max(0, Math.floor(scene.x + (point.x - 0.014) * scene.width));
+    flames.push(
+      await page.screenshot({
+        clip: {
+          x,
+          y: Math.floor(scene.y + (point.y - 0.041) * scene.height),
+          width: Math.min(Math.ceil(scene.width * 0.028), page.viewportSize()!.width - x),
+          height: Math.ceil(scene.height * 0.039),
+        },
+      }),
+    );
+  }
+  return flames;
+}
+
+test('original candle flames are filtered and extinguish independently', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const poster = page.waitForResponse((response) =>
+    response.url().endsWith('/scenes/interior.jpg'),
+  );
+  await page.goto('/');
+  await (await poster).finished();
+  await page.getByRole('button', { name: 'Enter the tent' }).click();
+  await expect(page.locator('.interior-scene')).toHaveClass(/pixel-ready/);
+  // Only the filtered source artwork should supply the visible flames.
+  for (const flame of await page.locator('.scene-candle').all()) await expect(flame).toBeHidden();
+  let before = await candleFlames(page);
+  for (let spent = 2; spent >= 0; spent--) {
+    await page
+      .getByRole('textbox', { name: 'Your question' })
+      .fill(`What can I reflect on, ${spent}?`);
+    await page.getByRole('button', { name: 'Ask the reader' }).click();
+    await expect(page.locator('.scene-candle.extinguished')).toHaveCount(3 - spent);
+    const after = await candleFlames(page);
+    for (let index = 0; index < 3; index++)
+      expect(after[index].equals(before[index])).toBe(index !== spent);
+    before = after;
+    await page.getByRole('button', { name: 'Open game menu' }).click();
+    await page.locator('#release-reading').click();
+  }
+  await expect(page.locator('#dialogue')).toHaveText('You ask too much. Come back tomorrow.');
+});
 
 test('live pixel scenes, reduced motion and recovery after graphics loss', async ({ page }) => {
   const errors: string[] = [];

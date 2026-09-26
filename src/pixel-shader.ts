@@ -52,15 +52,33 @@ uniform float ditherFactor;
 uniform float edgeThreshold;
 uniform float edgeIntensity;
 uniform vec3 edgeColor;
+uniform vec3 candles[3]; // Scene-relative wick position and current flame opacity.
+
+float extinguishedRegion(vec2 coord, vec3 light) {
+  if (light.z >= 1.0) return 0.0;
+  float radius = length((coord - light.xy - vec2(0.0, 0.012)) / vec2(0.090, 0.170));
+  return (1.0 - light.z) * (1.0 - smoothstep(0.80, 1.0, radius));
+}
+
+float litCandle(vec2 coord, vec3 light) {
+  if (light.z <= 0.0) return 0.0;
+  vec2 delta = abs((coord - light.xy - vec2(0.0, 0.012)) / vec2(0.024, 0.075));
+  return light.z * (1.0 - smoothstep(0.85, 1.0, max(delta.x, delta.y)));
+}
 
 vec3 scene(vec2 coord) {
   vec3 base = texture2D(baseTexture, coord).rgb;
   vec3 motion = texture2D(motionTexture, coord).rgb;
   float amount = motionMix;
-  if (interiorMask) {
-    float radius = length((coord - vec2(0.5, 0.43)) / vec2(0.26, 0.43));
-    // Keep the unlit candle plate outside the moving reader/orb region.
-    amount *= 1.0 - smoothstep(0.47, 0.98, radius);
+  if (interiorMask && min(candles[0].z, min(candles[1].z, candles[2].z)) < 1.0
+      && coord.y > 0.46 && coord.y < 0.89 && (coord.x < 0.27 || coord.x > 0.70)) {
+    // Preserve the original footage, including its flames, wax and warm halos.
+    // Only spent candles reveal the unlit plate, before the shared pixel effect.
+    float spent = max(extinguishedRegion(coord, candles[0]),
+      max(extinguishedRegion(coord, candles[1]), extinguishedRegion(coord, candles[2])));
+    float lit = max(litCandle(coord, candles[0]),
+      max(litCandle(coord, candles[1]), litCandle(coord, candles[2])));
+    amount *= 1.0 - spent * (1.0 - lit);
   }
   return mix(base, motion, amount);
 }

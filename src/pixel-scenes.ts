@@ -9,12 +9,15 @@ class PixelScene {
   private lastFrame = '';
   private lost = false;
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
+  private candles: HTMLElement[];
 
   constructor(
     private parent: HTMLElement,
     private poster: HTMLImageElement,
     private interior = false,
+    private litPoster?: HTMLImageElement,
   ) {
+    this.candles = Array.from(parent.querySelectorAll<HTMLElement>('.scene-candle'));
     this.canvas.className = 'scene-image pixel-scene';
     this.canvas.width = PIXEL_SETTINGS.width;
     this.canvas.height = PIXEL_SETTINGS.height;
@@ -90,6 +93,7 @@ class PixelScene {
         'edgeThreshold',
         'edgeIntensity',
         'edgeColor',
+        'candles[0]',
       ];
       this.uniforms = Object.fromEntries(
         names.map((name) => [name, gl.getUniformLocation(program, name)]),
@@ -136,7 +140,18 @@ class PixelScene {
     const gl = this.gl;
     if (!gl || this.lost || !this.poster.complete || !this.poster.naturalWidth) return;
     const ready = video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
-    const key = ready ? `${video.id}:${video.currentTime}` : 'poster';
+    const source = ready ? video : this.litPoster?.naturalWidth ? this.litPoster : undefined;
+    const lights = this.candles.flatMap((candle) => {
+      const style = getComputedStyle(candle);
+      return [
+        parseFloat(style.getPropertyValue('--candle-x')) / 100,
+        parseFloat(style.getPropertyValue('--candle-y')) / 100,
+        Number(style.opacity),
+      ];
+    });
+    // The masters are 24 fps; a faster display should not upload the same decoded frame again.
+    const decodedFrame = ready ? video.getVideoPlaybackQuality?.().totalVideoFrames : 0;
+    const key = `${ready ? `${video.id}:${decodedFrame || video.currentTime}` : source ? 'lit-poster' : 'poster'}:${lights}`;
     if (this.lastFrame === key) return;
     try {
       gl.useProgram(this.program!);
@@ -146,12 +161,15 @@ class PixelScene {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.poster);
         this.baseUploaded = true;
       }
-      if (ready) {
+      if (source) {
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, this.textures[1]);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
       }
-      gl.uniform1f(this.uniforms.motionMix, ready ? 1 : 0);
+      gl.uniform1f(this.uniforms.motionMix, source ? 1 : 0);
+      if (this.interior) {
+        gl.uniform3fv(this.uniforms['candles[0]'], lights);
+      }
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       this.lastFrame = key;
       this.parent.classList.add('pixel-ready');
@@ -167,9 +185,11 @@ export function createPixelScenes() {
   const get = <T extends Element>(selector: string) => document.querySelector<T>(selector)!;
   const exteriorPoster = get<HTMLImageElement>('.exterior-scene img');
   const interiorPoster = get<HTMLImageElement>('.interior-scene img');
+  const litPoster = new Image();
+  litPoster.src = '/assets/scenes/interior.jpg';
   const scenes = {
     exterior: new PixelScene(get('.exterior-scene'), exteriorPoster),
-    interior: new PixelScene(get('.interior-scene'), interiorPoster, true),
+    interior: new PixelScene(get('.interior-scene'), interiorPoster, true, litPoster),
     entrance: new PixelScene(get('.entrance-scene'), exteriorPoster),
   };
   const videos = {
@@ -213,13 +233,18 @@ export function createPixelScenes() {
     draw();
     if (!paused && !reduced) frame = requestAnimationFrame(tick);
   };
-  for (const image of [exteriorPoster, interiorPoster]) image.addEventListener('load', draw);
+  for (const image of [exteriorPoster, interiorPoster, litPoster])
+    image.addEventListener('load', draw);
   for (const video of Object.values(videos)) {
     video.addEventListener('loadeddata', draw);
     video.addEventListener('seeked', draw);
   }
   for (const scene of Object.values(scenes))
     scene.canvas.addEventListener('webglcontextrestored', draw);
+  // Quota updates must redraw even while playback is paused or motion is reduced.
+  const candleChanges = new MutationObserver(draw);
+  for (const candle of document.querySelectorAll('.scene-candle'))
+    candleChanges.observe(candle, { attributes: true, attributeFilter: ['class'] });
   window.addEventListener('pagehide', () => cancelAnimationFrame(frame));
   return { update };
 }

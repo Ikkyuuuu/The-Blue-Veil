@@ -9,6 +9,7 @@ for (const name of [
   'interior-master.mp4',
   'reading-master.mp4',
   'exterior.jpg',
+  'interior.jpg',
   'interior-unlit.png',
 ])
   await access(`public/assets/scenes/${name}`);

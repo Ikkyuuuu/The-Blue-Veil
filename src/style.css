@@ -97,6 +97,9 @@ a {
 .pixel-ready > .scene-image:not(canvas) {
   visibility: hidden;
 }
+.pixel-ready > .scene-candle {
+  visibility: hidden;
+}
 .pixel-ready > .pixel-scene {
   visibility: visible;
 }
@@ -496,22 +499,24 @@ textarea:focus-visible {
 }
 .scene-candle {
   position: absolute;
+  left: var(--candle-x);
+  top: var(--candle-y);
   width: 1%;
   height: 4%;
   transform: translate(-50%, -100%);
   transition: opacity 0.8s;
 }
 .candle-left {
-  left: 16.9%;
-  top: 65.9%;
+  --candle-x: 16.9%;
+  --candle-y: 65.9%;
 }
 .candle-right {
-  left: 79.3%;
-  top: 63.3%;
+  --candle-x: 79.3%;
+  --candle-y: 63.3%;
 }
 .candle-short {
-  left: 84.3%;
-  top: 69.2%;
+  --candle-x: 84.3%;
+  --candle-y: 69.2%;
 }
 .scene-candle i {
   position: absolute;
