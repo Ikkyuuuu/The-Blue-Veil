@@ -1,5 +1,38 @@
 import { test, expect, type Page } from '@playwright/test';
 
+test('hidden video frames keep repainting when playback-quality counters are stale', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const quality = HTMLVideoElement.prototype.getVideoPlaybackQuality;
+    HTMLVideoElement.prototype.getVideoPlaybackQuality = function () {
+      const result = quality.call(this);
+      Object.defineProperty(result, 'totalVideoFrames', { value: 1 });
+      return result;
+    };
+    const draw = WebGLRenderingContext.prototype.drawArrays;
+    WebGLRenderingContext.prototype.drawArrays = function (...args) {
+      const canvas = this.canvas as HTMLCanvasElement;
+      canvas.dataset.draws = String(Number(canvas.dataset.draws ?? 0) + 1);
+      draw.apply(this, args);
+    };
+  });
+  await page.goto('/');
+  await expect(page.locator('.exterior-scene')).toHaveClass(/pixel-ready/);
+  const draws = () =>
+    page
+      .locator('.exterior-scene canvas')
+      .evaluate((canvas) => Number((canvas as HTMLElement).dataset.draws));
+  const first = await draws();
+  await expect.poll(draws).toBeGreaterThan(first + 3);
+  await page.getByRole('button', { name: 'Open game menu' }).click();
+  const paused = await draws();
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 250)));
+  expect(await draws()).toBe(paused);
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect.poll(draws).toBeGreaterThan(paused + 3);
+});
+
 async function candleFlames(page: Page) {
   const scene = (await page.locator('.interior-scene').boundingBox())!;
   const points = await page.locator('.scene-candle').evaluateAll((candles) =>

@@ -7,6 +7,7 @@ class PixelScene {
   private textures: WebGLTexture[] = [];
   private baseUploaded = false;
   private lastFrame = '';
+  private lastSource = '';
   private lost = false;
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private candles: HTMLElement[];
@@ -44,6 +45,7 @@ class PixelScene {
       this.lost = false;
       this.baseUploaded = false;
       this.lastFrame = '';
+      this.lastSource = '';
       const compile = (type: number, source: string) => {
         const shader = gl.createShader(type)!;
         gl.shaderSource(shader, source);
@@ -136,7 +138,7 @@ class PixelScene {
     }
   }
 
-  draw(video?: HTMLVideoElement) {
+  draw(video?: HTMLVideoElement, presentedFrame?: number) {
     const gl = this.gl;
     if (!gl || this.lost || !this.poster.complete || !this.poster.naturalWidth) return;
     const ready = video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
@@ -149,9 +151,15 @@ class PixelScene {
         Number(style.opacity),
       ];
     });
-    // The masters are 24 fps; a faster display should not upload the same decoded frame again.
-    const decodedFrame = ready ? video.getVideoPlaybackQuality?.().totalVideoFrames : 0;
-    const key = `${ready ? `${video.id}:${decodedFrame || video.currentTime}` : source ? 'lit-poster' : 'poster'}:${lights}`;
+    // Playback-quality counters can advance at only ~4 Hz for a hidden source
+    // video. Frame callbacks signal that we consume every presented frame.
+    const decodedFrame = ready ? (presentedFrame ?? video.currentTime) : 0;
+    const sourceKey = ready
+      ? `${video.id}:${decodedFrame || video.currentTime}`
+      : source
+        ? 'lit-poster'
+        : 'poster';
+    const key = `${sourceKey}:${lights}`;
     if (this.lastFrame === key) return;
     try {
       gl.useProgram(this.program!);
@@ -161,10 +169,11 @@ class PixelScene {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.poster);
         this.baseUploaded = true;
       }
-      if (source) {
+      if (source && this.lastSource !== sourceKey) {
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, this.textures[1]);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+        this.lastSource = sourceKey;
       }
       gl.uniform1f(this.uniforms.motionMix, source ? 1 : 0);
       if (this.interior) {
@@ -201,7 +210,19 @@ export function createPixelScenes() {
   let stage = 'outside',
     paused = false,
     reduced = false,
-    frame = 0;
+    frame = 0,
+    candleFrame = 0,
+    lastTick = 0;
+  let videoFrame: { video: HTMLVideoElement; id: number } | undefined;
+  const presentedFrames = new WeakMap<HTMLVideoElement, number>();
+  const activeVideo = () =>
+    stage === 'outside'
+      ? videos.exterior
+      : stage === 'entering'
+        ? videos.entrance
+        : stage === 'pending'
+          ? videos.reading
+          : videos.interior;
   const draw = () => {
     const scene =
       stage === 'outside'
@@ -209,29 +230,45 @@ export function createPixelScenes() {
         : stage === 'entering'
           ? scenes.entrance
           : scenes.interior;
-    const video =
-      stage === 'outside'
-        ? videos.exterior
-        : stage === 'entering'
-          ? videos.entrance
-          : stage === 'pending'
-            ? videos.reading
-            : videos.interior;
-    scene.draw(reduced ? undefined : video);
+    const video = activeVideo();
+    scene.draw(reduced ? undefined : video, presentedFrames.get(video));
   };
-  const tick = () => {
+  const tick = (now: number) => {
     frame = 0;
-    draw();
+    // Compatibility path for browsers without video-frame callbacks.
+    if (now - lastTick >= 1000 / 24) {
+      lastTick = now;
+      draw();
+    }
     if (!paused && !reduced) frame = requestAnimationFrame(tick);
   };
+  const schedule = () => {
+    if (paused || reduced || videoFrame || frame) return;
+    const video = activeVideo();
+    if (typeof video.requestVideoFrameCallback === 'function') {
+      const id = video.requestVideoFrameCallback((_now, metadata) => {
+        videoFrame = undefined;
+        presentedFrames.set(video, metadata.presentedFrames);
+        draw();
+        schedule();
+      });
+      videoFrame = { video, id };
+    } else frame = requestAnimationFrame(tick);
+  };
+  const stop = () => {
+    if (videoFrame) videoFrame.video.cancelVideoFrameCallback(videoFrame.id);
+    videoFrame = undefined;
+    cancelAnimationFrame(frame);
+    cancelAnimationFrame(candleFrame);
+    frame = candleFrame = 0;
+  };
   const update = (nextStage: string, nextPaused: boolean, nextReduced: boolean) => {
+    stop();
     stage = nextStage;
     paused = nextPaused;
     reduced = nextReduced;
-    cancelAnimationFrame(frame);
-    frame = 0;
     draw();
-    if (!paused && !reduced) frame = requestAnimationFrame(tick);
+    schedule();
   };
   for (const image of [exteriorPoster, interiorPoster, litPoster])
     image.addEventListener('load', draw);
@@ -242,9 +279,26 @@ export function createPixelScenes() {
   for (const scene of Object.values(scenes))
     scene.canvas.addEventListener('webglcontextrestored', draw);
   // Quota updates must redraw even while playback is paused or motion is reduced.
-  const candleChanges = new MutationObserver(draw);
+  const candleChanges = new MutationObserver(() => {
+    draw();
+    // A paused video has no frame callbacks to animate the short opacity fade.
+    // Reduced-motion candles settle immediately and only need the redraw above.
+    if (reduced || document.hidden) return;
+    cancelAnimationFrame(candleFrame);
+    const until = performance.now() + 850;
+    let last = 0;
+    const fade = (now: number) => {
+      candleFrame = 0;
+      if (now - last >= 1000 / 24 || now >= until) {
+        last = now;
+        draw();
+      }
+      if (now < until && !document.hidden) candleFrame = requestAnimationFrame(fade);
+    };
+    candleFrame = requestAnimationFrame(fade);
+  });
   for (const candle of document.querySelectorAll('.scene-candle'))
     candleChanges.observe(candle, { attributes: true, attributeFilter: ['class'] });
-  window.addEventListener('pagehide', () => cancelAnimationFrame(frame));
+  window.addEventListener('pagehide', stop);
   return { update };
 }

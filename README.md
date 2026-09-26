@@ -37,6 +37,8 @@ The scene shader is adapted from [Video-to-Pixel-Art](https://collidingscopes.gi
 
 The current settings are pixel size **1**, dither strength **0.52**, Acid palette, edge threshold **0.48**, edge intensity **0.25**, and edge color **RGB(0, 0, 0)**. The effect renders at a stable 1200 × 672 grid and scales with crisp pixel edges. It covers the tent, reader, orb and original candle flames/halos; card artwork and text remain unchanged. Only spent candles are masked onto the unlit plate, before the shared pixel effect. Only the active scene updates, reduced-motion mode uses the original lit still with the same candle states, and the earlier scene composition remains available if WebGL is unavailable or its context is lost. No external scripts or services are contacted for rendering.
 
+Scene rendering follows `requestVideoFrameCallback` so the hidden source videos deliver their full 24 fps instead of relying on throttled playback-quality counters. Older browsers use a bounded animation-frame fallback. Paused and hidden pages stop scheduling scene frames; candle transitions can redraw without uploading the same video texture again.
+
 ## Paid deck and public source
 
 Purchase the [Pixel Tarot Deck from Chorline](https://chorline.itch.io/pixeltarotdeck), extract it locally and run the import command. It copies the reworked PNGs without modifying them. The paid PNGs, original Aseprite files and source archive are not part of the public repository. See [ASSET_LICENSES.md](ASSET_LICENSES.md). Do not remove these exclusions merely to make a build pass.
