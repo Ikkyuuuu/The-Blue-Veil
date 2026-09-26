@@ -210,7 +210,7 @@
   }
   .deck-hint {
     font-size: 18px;
-    bottom: -26px;
+    bottom: calc(-26px - 8 * var(--stack-step));
   }
   .card-slot > span {
     font-size: 26px;

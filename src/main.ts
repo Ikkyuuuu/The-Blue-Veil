@@ -4,6 +4,7 @@ import { CARDS, CARD_MAP, POSITIONS, type ReadingView, type SessionView } from '
 import { ApiError, Client } from './api';
 import { Sound } from './audio';
 import { createPixelScenes } from './pixel-scenes';
+import { createCardMotion } from './card-motion';
 
 const speaker =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h5l5-5v16l-5-5H3zM17 8v8m4-11v14"/></svg>';
@@ -21,7 +22,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <section id="inside" aria-label="Your tarot reading" hidden>
     <div id="speech" class="speech"><p id="speech-title" hidden></p><p id="dialogue" aria-hidden="true"></p><p id="reader-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></p><div class="speech-actions"><button id="previous-line" aria-label="Previous part of the reading" hidden>◂</button><button id="continue-reading" aria-label="Continue reading" title="Space or click to continue" hidden>▾</button></div></div>
     <form id="question-form" autocomplete="off"><label class="sr-only" for="question">Your question</label><div class="question-shell"><span aria-hidden="true">&gt;</span><textarea id="question" rows="2" maxlength="1000" placeholder="Type your question..." aria-describedby="question-help"></textarea><button id="submit-question" aria-label="Ask the reader" type="submit" title="Ask · Enter">↵</button></div><span id="question-help" class="sr-only">Ask in 3 to 500 characters. Avoid names and personal details. Enter sends; Shift and Enter adds a line.</span></form>
-    <div id="table" hidden><p id="asked-question" class="sr-only"></p><button id="deck" class="deck" aria-label="Draw card 1 of 3"><img src="/assets/deck/back.png" alt="Tarot deck, face down" draggable="false"><span class="deck-hint">DRAW</span></button><div id="spread" class="spread" aria-label="Your three cards"></div></div>
+    <div id="table" hidden><p id="asked-question" class="sr-only"></p><button id="deck" class="deck" aria-label="Draw card 1 of 3">${Array.from({ length: 8 }, (_, index) => `<span class="deck-layer" style="--layer:${8 - index}" aria-hidden="true"></span>`).join('')}<img src="/assets/deck/back.png" alt="Tarot deck, face down" draggable="false"><span class="deck-hint">DRAW</span></button><div id="spread" class="spread" aria-label="Your three cards"></div></div>
     <div id="result-choices" hidden><button id="ask-again" class="game-choice" aria-label="Ask again">Ask again</button><button id="delete-reading" class="game-choice" aria-label="Delete this reading">Forget this reading</button></div>
     <p id="allowance-label" class="sr-only" aria-live="polite"></p>
     <div id="error-box" role="alert" hidden><span id="error-message"></span><button id="reconnect" class="quiet-action">RECONNECT ▸</button></div>
@@ -59,6 +60,7 @@ const videos = ['exterior-video', 'interior-video', 'reading-video', 'entrance-v
   $<HTMLVideoElement>(id),
 );
 const pixelScenes = createPixelScenes();
+const cardMotion = createCardMotion();
 
 function visibility() {
   const paused = document.hidden || menu.open || info.open;
@@ -73,6 +75,7 @@ function visibility() {
   }
   sound.visibility(paused);
   pixelScenes.update(stage, paused, reduced.matches);
+  cardMotion.update(paused, reduced.matches);
 }
 function setStage(next: Stage) {
   stage = next;
@@ -216,7 +219,6 @@ function renderTable() {
   const signature =
     reading.cards.map((card) => `${card.id}:${card.reversed}`).join(',') + `:${stage === 'result'}`;
   if (signature !== renderedCards) {
-    const previousCount = $('spread').querySelectorAll('.revealed').length;
     renderedCards = signature;
     $('spread').replaceChildren();
     for (let index = 0; index < 3; index++) {
@@ -225,7 +227,6 @@ function renderTable() {
       const card = reading.cards[index];
       if (card) {
         slot.classList.add('revealed');
-        if (stage === 'drawing' && index >= previousCount) slot.classList.add('dealt');
         if (stage === 'result') {
           const button = document.createElement('button');
           button.className = 'table-card';
@@ -456,9 +457,11 @@ async function drawCard() {
   try {
     const value = await client.draw(reading.id, pendingDraw.index, pendingDraw.id);
     pendingDraw = undefined;
-    busy = false;
+    reading = value;
+    renderTable();
     sound.chime(index + 1);
     orbPulse();
+    await cardMotion.deal($('deck'), $('spread').children[index] as HTMLElement);
     await acceptReading(value);
   } catch (e) {
     showError(e);
