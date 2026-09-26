@@ -1,8 +1,10 @@
 # Scene preparation
 
-The owner-provided four loops are used for outside, entering, reader idle and the reading orb. Entry plays once; the other clips repeat. Deployment copies strip audio/metadata and compress the videos. Ambient sound/chimes are synthesized locally after the player opts in.
+The owner-provided four full-length loop masters are used for outside, entering, reader idle and the reading orb. Entry plays once; the other clips repeat. `npm run assets:scenes -- "path to Tarot_Game_Loops"` imports them as `*-master.mp4` using stream copy: audio/metadata are stripped without re-encoding video pixels. Ambient sound/chimes are synthesized locally after the player opts in.
 
-The built-in image-generation tool produced the independent-candle base at `public/assets/scenes/interior-unlit.png`. The source original was left intact. A soft central video mask preserves motion in the hooded reader and orb, while candle flames and local glow layers are controlled by game state over the unlit plate.
+The built-in image-generation tool produced the independent-candle base at `public/assets/scenes/interior-unlit.png`. The source original was left intact. A soft central video mask preserves motion in the hooded reader and orb, while candle flames and local glow layers are controlled by game state over the unlit plate. The live shader composites this plate and motion before applying the same palette and dithering, so both layers match. The CSS version of the composition remains as a fallback if WebGL is unavailable.
+
+The pixel effect runs locally using an adapted MIT-licensed shader from [Video-to-Pixel-Art by Alan Ang / collidingScopes](https://collidingscopes.github.io/video-to-pixel-art/). Keep the README/in-game credit and `public/licenses/video-to-pixel-art-MIT.txt`. The screenshot settings are recorded in `src/pixel-shader.ts`, with the owner's subsequent edge-color change to black. Do not bake this effect into another compressed export or use the short shader-tool recordings as replacements for the original loops.
 
 Prompt used:
 

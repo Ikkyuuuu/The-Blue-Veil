@@ -3,15 +3,16 @@ import './ui.css';
 import { CARDS, CARD_MAP, POSITIONS, type ReadingView, type SessionView } from '../shared/cards';
 import { ApiError, Client } from './api';
 import { Sound } from './audio';
+import { createPixelScenes } from './pixel-scenes';
 
 const speaker =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h5l5-5v16l-5-5H3zM17 8v8m4-11v14"/></svg>';
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <main id="game" aria-label="The Blue Veil tarot game">
   <div class="world" aria-hidden="true">
-    <div class="scene-frame exterior-scene"><img class="scene-image" src="/assets/scenes/exterior.jpg" alt=""><video id="exterior-video" class="scene-image" muted loop playsinline preload="auto" poster="/assets/scenes/exterior.jpg" src="/assets/scenes/exterior.mp4?v=1440p"></video></div>
-    <div class="scene-frame interior-scene"><img class="scene-image" src="/assets/scenes/interior-unlit.png" alt=""><video id="interior-video" class="scene-image figure-video" muted loop playsinline preload="none" src="/assets/scenes/interior.mp4?v=1440p"></video><video id="reading-video" class="scene-image figure-video reading-video" muted loop playsinline preload="none" src="/assets/scenes/reading.mp4?v=1440p"></video><div class="orb-aura"></div><div class="scene-candle candle-left"><i></i><b></b></div><div class="scene-candle candle-right"><i></i><b></b></div><div class="scene-candle candle-short"><i></i><b></b></div></div>
-    <video id="entrance-video" class="entrance-video" muted playsinline preload="none" src="/assets/scenes/entrance.mp4?v=1440p"></video>
+    <div class="scene-frame exterior-scene"><img class="scene-image" src="/assets/scenes/exterior.jpg" alt=""><video id="exterior-video" class="scene-image" muted loop playsinline preload="auto" poster="/assets/scenes/exterior.jpg" src="/assets/scenes/exterior-master.mp4?v=live-pixel-1"></video></div>
+    <div class="scene-frame interior-scene"><img class="scene-image" src="/assets/scenes/interior-unlit.png" alt=""><video id="interior-video" class="scene-image figure-video" muted loop playsinline preload="none" src="/assets/scenes/interior-master.mp4?v=live-pixel-1"></video><video id="reading-video" class="scene-image figure-video reading-video" muted loop playsinline preload="none" src="/assets/scenes/reading-master.mp4?v=live-pixel-1"></video><div class="orb-aura"></div><div class="scene-candle candle-left"><i></i><b></b></div><div class="scene-candle candle-right"><i></i><b></b></div><div class="scene-candle candle-short"><i></i><b></b></div></div>
+    <div class="scene-frame entrance-scene"><video id="entrance-video" class="scene-image" muted playsinline preload="none" src="/assets/scenes/entrance-master.mp4?v=live-pixel-1"></video></div>
     <div class="vignette"></div><div class="motes">${Array.from({ length: 9 }, (_, i) => `<i style="--n:${i}"></i>`).join('')}</div>
   </div>
   <div class="game-controls"><span id="preview-badge" hidden title="Local preview — sample readings">DEMO</span><button id="sound" class="icon-button" aria-label="Turn ambient sound on" aria-pressed="false" title="Sound">${speaker}</button><button id="menu-toggle" class="icon-button" aria-label="Open game menu" title="Menu · Esc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M17 4v16"/></svg></button></div>
@@ -57,6 +58,7 @@ let pollTimer: ReturnType<typeof setTimeout> | undefined,
 const videos = ['exterior-video', 'interior-video', 'reading-video', 'entrance-video'].map((id) =>
   $<HTMLVideoElement>(id),
 );
+const pixelScenes = createPixelScenes();
 
 function visibility() {
   const paused = document.hidden || menu.open || info.open;
@@ -70,6 +72,7 @@ function visibility() {
     else video.pause();
   }
   sound.visibility(paused);
+  pixelScenes.update(stage, paused, reduced.matches);
 }
 function setStage(next: Stage) {
   stage = next;
@@ -558,7 +561,7 @@ $('about-privacy').addEventListener('click', () =>
 );
 $('about-deck').addEventListener('click', () => {
   showInfo(
-    '<h2>The Major Arcana</h2><p>22 cards. Three perspectives: the situation, the hidden influence, and the path ahead. Cards may be upright or reversed. Minor Arcana will arrive later.</p><p>Pixel Tarot Deck by <a href="https://chorline.itch.io/pixeltarotdeck" target="_blank" rel="noopener noreferrer">Chorline</a>, used unchanged. Interface font: VT323, under the SIL Open Font License.</p><div id="deck-gallery"></div>',
+    '<h2>The Major Arcana</h2><p>22 cards. Three perspectives: the situation, the hidden influence, and the path ahead. Cards may be upright or reversed. Minor Arcana will arrive later.</p><p>Pixel Tarot Deck by <a href="https://chorline.itch.io/pixeltarotdeck" target="_blank" rel="noopener noreferrer">Chorline</a>, used unchanged. Interface font: VT323, under the SIL Open Font License.</p><p>Scene pixel effects adapted from <a href="https://collidingscopes.github.io/video-to-pixel-art/" target="_blank" rel="noopener noreferrer">Video-to-Pixel-Art</a> by Alan Ang / collidingScopes, under the <a href="/licenses/video-to-pixel-art-MIT.txt" target="_blank" rel="noopener noreferrer">MIT license</a>.</p><div id="deck-gallery"></div>',
   );
   $('deck-gallery').append(...CARDS.map((card) => cardFigure(card.id, false)));
 });

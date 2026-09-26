@@ -8,6 +8,7 @@
 - Use AWS through the CLI and a verified scoped identity. Do not use the browser for AWS administration unless the user changes that preference.
 - Follow GAME_PLAN.md and IMPLEMENTATION_BACKLOG.md for the game design.
 - Current deck: use the supplied Pixel Tarot Deck reworked Major Arcana artwork and card back. Only the 22 major arcana are active; the owner will supply minor arcana later. Do not replace these with generated celestial symbols or mix in placeholder minor cards. Keep deck image files ignored until redistribution rights are verified.
+- Art direction: run the Video-to-Pixel-Art effect locally in the game over the original full-length loop masters. Avoid baking the effect into another compressed export or upscaling the videos. Reference settings: Acid palette, pixel size 1, dithering 0.52, edge threshold 0.48, edge intensity 0.25, edge RGB(0, 0, 0). Keep credit to [Video-to-Pixel-Art by Alan Ang / collidingScopes](https://collidingscopes.github.io/video-to-pixel-art/) in README.md and in-game credits, and retain the upstream MIT notice with the adapted shader. Cards and UI remain outside the scene shader.
 
 ## Public repository boundary
 

@@ -28,7 +28,13 @@ Open `http://localhost:5173`. The local preview visibly labels its sample interp
 
 The scene files are owner-provided assets under `public/assets/scenes`. A fresh checkout needs those licensed scene files if they are distributed separately; consult ASSET_LICENSES.md. The application expects the scene filenames checked by `npm run assets:check`.
 
-Animations use 2560 × 1440 (QHD) exports of the supplied 720p loop masters. To reproduce them, install FFmpeg and run `npm run assets:encode -- "path to Tarot_Game_Loops"` (or set `FFMPEG_PATH` to its executable). The existing loop timing is preserved. Upscaling improves presentation but cannot recover detail absent from the source; native 1440p or 4K generations would be needed for that.
+Animations use the original full-length 720p loop masters. The game applies the pixel effect live with local WebGL, avoiding a second compressed video export. To import the masters, install FFmpeg and run `npm run assets:scenes -- "path to Tarot_Game_Loops"` (or set `FFMPEG_PATH` to its executable). The importer copies video streams without re-encoding, strips audio/metadata, and preserves frame timing. The original videos already contain compression; the live effect cannot restore detail absent from them.
+
+## Pixel-effect credit
+
+The scene shader is adapted from [Video-to-Pixel-Art](https://collidingscopes.github.io/video-to-pixel-art/) by **Alan Ang / [collidingScopes](https://github.com/collidingScopes)**. Thank you for creating and sharing this tool. The adapted Acid palette, Bayer dithering and Sobel edge highlighting are covered by the [upstream MIT notice](public/licenses/video-to-pixel-art-MIT.txt); source revision `773cbdea04cae8a3e87d2f273b1c2e5a41851085` is recorded in `src/pixel-shader.ts`.
+
+The current settings are pixel size **1**, dither strength **0.52**, Acid palette, edge threshold **0.48**, edge intensity **0.25**, and edge color **RGB(0, 0, 0)**. The effect renders at a stable 1200 × 672 grid and scales with crisp pixel edges. It covers the tent, reader and orb; card artwork and text remain unchanged. Only the active scene updates, reduced-motion mode uses a still frame, and the original scene remains available if WebGL is unavailable or its context is lost. No external scripts or services are contacted for rendering.
 
 ## Paid deck and public source
 

@@ -16,7 +16,7 @@
     "infra:synth": "tsx infra/app.ts",
     "preview": "tsx server/dev.ts --production",
     "assets:import": "node scripts/import-deck.mjs",
-    "assets:encode": "node scripts/encode-scenes.mjs",
+    "assets:scenes": "node scripts/import-scenes.mjs",
     "assets:check": "tsx scripts/validate-assets.mjs",
     "deploy:preflight": "node scripts/deploy-preflight.mjs",
     "format": "prettier --write \"{src,shared,server,infra,tests}/**/*.{ts,css}\" \"scripts/*.mjs\" \"*.{ts,json}\" \".github/workflows/*.yml\"",

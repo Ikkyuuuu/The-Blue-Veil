@@ -74,7 +74,7 @@ a {
 .world,
 .scene-frame,
 .scene-image,
-.entrance-video,
+.entrance-scene,
 .vignette,
 .motes {
   position: absolute;
@@ -90,8 +90,17 @@ a {
   image-rendering: pixelated;
 }
 .scene-image:is(video),
-.entrance-video {
-  image-rendering: auto;
+.pixel-scene {
+  image-rendering: pixelated;
+}
+.pixel-scene {
+  visibility: hidden;
+}
+.pixel-ready > .scene-image:not(canvas) {
+  visibility: hidden;
+}
+.pixel-ready > .pixel-scene {
+  visibility: visible;
 }
 .scene-frame {
   transition: opacity 0.75s;
@@ -106,7 +115,7 @@ a {
   opacity: 0;
   transition: opacity 1s;
 }
-.entrance-video {
+.entrance-scene {
   object-fit: fill;
   opacity: 0;
   transition: opacity 0.4s;
@@ -132,7 +141,7 @@ body:not([data-stage='outside']):not([data-stage='entering']) .exterior-scene {
 body:not([data-stage='outside']):not([data-stage='entering']) .interior-scene {
   opacity: 1;
 }
-body[data-stage='entering'] .entrance-video {
+body[data-stage='entering'] .entrance-scene {
   opacity: 1;
 }
 body[data-stage='pending'] .reading-video {
@@ -512,9 +521,9 @@ textarea:focus-visible {
   left: 30%;
   width: 40%;
   height: 75%;
-  background: linear-gradient(#ffa94d, #fff3c3 80%, #6fb0ed);
+  background: linear-gradient(#9becb9, #fff6ba 80%, #c786e8);
   clip-path: polygon(52% 0, 74% 34%, 100% 68%, 76% 95%, 35% 100%, 0 75%, 20% 35%);
-  filter: drop-shadow(0 0 8px #f7b650);
+  filter: drop-shadow(0 0 6px #cdf09c);
   animation: flame 1.6s steps(4) infinite;
   transform-origin: bottom;
 }
@@ -524,7 +533,7 @@ textarea:focus-visible {
   left: -400%;
   width: 900%;
   height: 500%;
-  background: radial-gradient(ellipse, #f0a84b1c, transparent 70%);
+  background: radial-gradient(ellipse, #d37dca18, transparent 70%);
   mix-blend-mode: screen;
   animation: flame 2s ease-in-out infinite;
 }
