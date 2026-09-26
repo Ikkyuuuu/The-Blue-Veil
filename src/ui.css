@@ -94,6 +94,20 @@
     opacity: 0.65;
   }
 }
+@media (aspect-ratio > 1/1) {
+  /* Scale the artwork and cards together; keep the table visible when cropping. */
+  .world,
+  #table {
+    width: max(100vw, calc(100dvh * 25 / 14));
+    height: max(100dvh, calc(100vw * 14 / 25));
+    inset: auto auto 0 50%;
+    transform: translateX(-50%);
+  }
+  #table {
+    container-type: size;
+    perspective: max(100vw, calc(100dvh * 25 / 14));
+  }
+}
 @media (max-aspect-ratio: 1/1) {
   #game {
     width: 100vw;
