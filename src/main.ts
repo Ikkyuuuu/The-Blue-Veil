@@ -16,7 +16,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="scene-frame entrance-scene"><video id="entrance-video" class="scene-image" muted playsinline preload="none" src="/assets/scenes/entrance-master.mp4?v=live-pixel-1"></video></div>
     <div class="vignette"></div><div class="motes">${Array.from({ length: 9 }, (_, i) => `<i style="--n:${i}"></i>`).join('')}</div>
   </div>
-  <div class="game-controls"><span id="preview-badge" hidden title="Local preview — sample readings">DEMO</span><button id="sound" class="icon-button" aria-label="Turn ambient sound on" aria-pressed="false" title="Sound">${speaker}</button><button id="menu-toggle" class="icon-button" aria-label="Open game menu" title="Menu · Esc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M17 4v16"/></svg></button></div>
+  <div class="game-controls"><span id="preview-badge" hidden title="Local preview — sample readings">DEMO</span><button id="sound" class="icon-button" aria-label="Turn game sound on" aria-pressed="false" title="Sound · dialogue, ambience and cards">${speaker}</button><button id="menu-toggle" class="icon-button" aria-label="Open game menu" title="Menu · Esc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M17 4v16"/></svg></button></div>
   <section id="outside" aria-label="Outside the tent"><button id="enter" aria-label="Enter the tent"><span class="desktop-prompt">PRESS SPACE TO ENTER</span><span class="touch-prompt">TAP TO ENTER</span></button></section>
   <button id="skip-entry" class="quiet-action" aria-label="Skip the walk" hidden>SKIP ▸</button>
   <section id="inside" aria-label="Your tarot reading" hidden>
@@ -92,16 +92,19 @@ function setStage(next: Stage) {
   $('speech-title').hidden = true;
   clearInterval(typeTimer);
   typing = false;
+  sound.stopVoice();
   visibility();
 }
-function finishTyping() {
+function finishTyping(interrupted = true) {
   clearInterval(typeTimer);
+  if (interrupted) sound.stopVoice();
   typing = false;
   $('dialogue').textContent = spokenText;
   $('speech').classList.remove('typing');
 }
 function say(text: string, animate = true, title?: string) {
   clearInterval(typeTimer);
+  sound.stopVoice();
   spokenText = text;
   $('speech-title').textContent = title ?? '';
   $('speech-title').hidden = !title;
@@ -117,10 +120,11 @@ function say(text: string, animate = true, title?: string) {
   let count = 0;
   typeTimer = setInterval(() => {
     if (menu.open || info.open || document.hidden) return;
+    const revealed = characters.slice(count, count + 2).join('');
     count += 2;
     $('dialogue').textContent = characters.slice(0, count).join('');
-    if (count % 6 === 0) sound.voice();
-    if (count >= characters.length) finishTyping();
+    sound.voice(revealed);
+    if (count >= characters.length) finishTyping(false);
   }, 30);
 }
 function toast(text: string) {
@@ -539,17 +543,19 @@ for (const dialog of [menu, info]) {
     if (event.target === dialog) dialog.close();
   });
 }
-$('sound').addEventListener(
-  'click',
-  () =>
-    void sound
-      .toggle()
-      .then((on) => {
-        $('sound').setAttribute('aria-pressed', String(on));
-        $('sound').setAttribute('aria-label', `Turn ambient sound ${on ? 'off' : 'on'}`);
-      })
-      .catch(() => toast('Sound is unavailable in this browser.')),
-);
+$('sound').addEventListener('click', async () => {
+  const button = $<HTMLButtonElement>('sound');
+  button.disabled = true;
+  try {
+    const on = await sound.toggle();
+    button.setAttribute('aria-pressed', String(on));
+    button.setAttribute('aria-label', `Turn game sound ${on ? 'off' : 'on'}`);
+  } catch {
+    toast('Sound is unavailable in this browser.');
+  } finally {
+    button.disabled = false;
+  }
+});
 $('fullscreen').addEventListener('click', () => {
   const action = document.fullscreenElement
     ? document.exitFullscreen()
