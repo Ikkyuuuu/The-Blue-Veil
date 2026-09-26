@@ -5,6 +5,7 @@ import { ApiError, Client } from './api';
 import { Sound } from './audio';
 import { createPixelScenes } from './pixel-scenes';
 import { createCardMotion } from './card-motion';
+import { createCardFocus } from './card-focus';
 
 const speaker =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h5l5-5v16l-5-5H3zM17 8v8m4-11v14"/></svg>';
@@ -24,6 +25,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <section id="outside" aria-label="Outside the tent"><button id="enter" aria-label="Enter the tent"><span class="desktop-prompt">PRESS SPACE TO ENTER</span><span class="touch-prompt">TAP TO ENTER</span></button></section>
   <button id="skip-entry" class="quiet-action" aria-label="Skip the walk" hidden>SKIP ▸</button>
   <section id="inside" aria-label="Your tarot reading" hidden>
+    <div id="card-focus" aria-hidden="true"></div>
     <div id="speech" class="speech"><p id="speech-title" hidden></p><p id="dialogue" aria-hidden="true"></p><p id="reader-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></p><div class="speech-actions"><button id="previous-line" aria-label="Previous part of the reading" hidden>◂</button><button id="continue-reading" aria-label="Continue reading" title="Space or click to continue" hidden>▾</button></div></div>
     <form id="question-form" autocomplete="off"><label class="sr-only" for="question">Your question</label><div class="question-shell"><span aria-hidden="true">&gt;</span><textarea id="question" rows="2" maxlength="1000" placeholder="Type your question..." aria-describedby="question-help"></textarea><button id="submit-question" aria-label="Ask the reader" type="submit" title="Ask · Enter">↵</button></div><span id="question-help" class="sr-only">Ask in 3 to 500 characters. Avoid names and personal details. Enter sends; Shift and Enter adds a line.</span></form>
     <div id="table" hidden><p id="asked-question" class="sr-only"></p><button id="deck" class="deck" aria-label="Draw card 1 of 3">${Array.from({ length: 8 }, (_, index) => `<span class="deck-layer" style="--layer:${8 - index}" aria-hidden="true"></span>`).join('')}<img src="/assets/deck/back.png" alt="Tarot deck, face down" draggable="false"><span class="deck-hint">DRAW</span></button><div id="spread" class="spread" aria-label="Your three cards"></div></div>
@@ -65,6 +67,7 @@ const videos = ['exterior-video', 'interior-video', 'reading-video', 'entrance-v
 );
 const pixelScenes = createPixelScenes();
 const cardMotion = createCardMotion();
+const cardFocus = createCardFocus($('card-focus'));
 
 function visibility() {
   const paused = document.hidden || menu.open || info.open;
@@ -80,8 +83,10 @@ function visibility() {
   sound.visibility(paused);
   pixelScenes.update(stage, paused, reduced.matches);
   cardMotion.update(paused, reduced.matches);
+  cardFocus.update(paused);
 }
 function setStage(next: Stage) {
+  cardFocus.show();
   stage = next;
   document.body.dataset.stage = next;
   $('outside').hidden = next !== 'outside';
@@ -282,6 +287,7 @@ function showLine() {
   $('result-choices').hidden = true;
   const line = lines[lineIndex];
   if (!line) return;
+  cardFocus.show(line.cardIndex === undefined ? undefined : reading?.cards[line.cardIndex]);
   say(line.text, true, line.title);
   $('continue-reading').hidden = false;
   $('previous-line').hidden = lineIndex === 0;
@@ -300,6 +306,7 @@ function advanceReading() {
     showLine();
   } else {
     resultFinished = true;
+    cardFocus.show();
     $('continue-reading').hidden = true;
     $('result-choices').hidden = false;
     $('ask-again').focus({ preventScroll: true });

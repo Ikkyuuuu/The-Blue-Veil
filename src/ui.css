@@ -335,6 +335,17 @@
     font-size: 24px;
   }
 }
+@media (max-aspect-ratio: 1/1) {
+  .focus-center {
+    top: 29%;
+    width: min(42cqw, 26cqh, 224px);
+  }
+  .card-focused .speech {
+    top: 50%;
+    bottom: 28%;
+    max-height: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *:before,
