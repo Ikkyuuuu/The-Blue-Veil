@@ -8,6 +8,10 @@ import { createCardMotion } from './card-motion';
 
 const speaker =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h5l5-5v16l-5-5H3zM17 8v8m4-11v14"/></svg>';
+const fullscreenPaths = {
+  enter: 'M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5',
+  exit: 'M4 9h5V4m6 0v5h5M9 20v-5H4m16 0h-5v5',
+};
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <main id="game" aria-label="The Blue Veil tarot game">
   <div class="world" aria-hidden="true">
@@ -16,7 +20,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="scene-frame entrance-scene"><video id="entrance-video" class="scene-image" muted playsinline preload="none" src="/assets/scenes/entrance-master.mp4?v=live-pixel-1"></video></div>
     <div class="vignette"></div><div class="motes">${Array.from({ length: 9 }, (_, i) => `<i style="--n:${i}"></i>`).join('')}</div>
   </div>
-  <div class="game-controls"><span id="preview-badge" hidden title="Local preview — sample readings">DEMO</span><button id="sound" class="icon-button" aria-label="Turn game sound on" aria-pressed="false" title="Sound · dialogue, ambience and cards">${speaker}</button><button id="menu-toggle" class="icon-button" aria-label="Open game menu" title="Menu · Esc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M17 4v16"/></svg></button></div>
+  <div class="game-controls"><span id="preview-badge" hidden title="Local preview — sample readings">DEMO</span><button id="sound" class="icon-button" aria-label="Turn game sound on" aria-pressed="false" title="Sound · dialogue, ambience and cards">${speaker}</button><button id="fullscreen-toggle" class="icon-button" aria-label="Enter fullscreen" aria-pressed="false" title="Enter fullscreen"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fullscreen-glyph" d="${fullscreenPaths.enter}"/></svg></button><button id="menu-toggle" class="icon-button" aria-label="Open game menu" title="Menu · Esc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M17 4v16"/></svg></button></div>
   <section id="outside" aria-label="Outside the tent"><button id="enter" aria-label="Enter the tent"><span class="desktop-prompt">PRESS SPACE TO ENTER</span><span class="touch-prompt">TAP TO ENTER</span></button></section>
   <button id="skip-entry" class="quiet-action" aria-label="Skip the walk" hidden>SKIP ▸</button>
   <section id="inside" aria-label="Your tarot reading" hidden>
@@ -556,13 +560,33 @@ $('sound').addEventListener('click', async () => {
     button.disabled = false;
   }
 });
-$('fullscreen').addEventListener('click', () => {
-  const action = document.fullscreenElement
-    ? document.exitFullscreen()
-    : document.documentElement.requestFullscreen();
-  void action.catch(() => toast('Fullscreen is unavailable here.'));
+function syncFullscreen() {
+  const active = Boolean(document.fullscreenElement);
+  const label = active ? 'Exit fullscreen' : 'Enter fullscreen';
+  $('fullscreen-toggle').setAttribute('aria-label', label);
+  $('fullscreen-toggle').setAttribute('title', label);
+  $('fullscreen-toggle').setAttribute('aria-pressed', String(active));
+  $('fullscreen-glyph').setAttribute('d', active ? fullscreenPaths.exit : fullscreenPaths.enter);
+  $('fullscreen').textContent = active ? 'Exit fullscreen' : 'Fullscreen';
+}
+async function toggleFullscreen() {
+  const controls = [$<HTMLButtonElement>('fullscreen-toggle'), $<HTMLButtonElement>('fullscreen')];
+  controls.forEach((button) => (button.disabled = true));
   menu.close();
-});
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch {
+    toast('Fullscreen is unavailable here.');
+  } finally {
+    controls.forEach((button) => (button.disabled = false));
+    syncFullscreen();
+  }
+}
+$('fullscreen-toggle').addEventListener('click', () => void toggleFullscreen());
+$('fullscreen').addEventListener('click', () => void toggleFullscreen());
+document.addEventListener('fullscreenchange', syncFullscreen);
+syncFullscreen();
 $('about-privacy').addEventListener('click', () =>
   showInfo(
     '<h2>Inside the tent</h2><p>Three questions per browser, each day. Each accepted question extinguishes one candle. They return at midnight in Bangkok. Clearing cookies or changing browsers creates a separate visit.</p><p>A browser cookie remembers your allowance. Questions and readings remain available for up to 24 hours. Forgetting a reading deletes its content; the daily count remains. Scheduled cleanup removes expired content, with storage expiration as a fallback.</p><p>The live game uses AWS Bedrock, potentially outside Thailand. Avoid names, addresses, passwords and personal details. Question text is not written to operational logs.</p><p>The local demo uses sample readings and sends no question to AI unless Bedrock mode is explicitly configured.</p><p>For entertainment and reflection. The cards do not establish facts about the future or replace professional advice.</p>',
