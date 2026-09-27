@@ -498,26 +498,6 @@ textarea:focus-visible {
   aspect-ratio: 128 / 180;
   transform: translate(-50%, -50%);
 }
-.card-aura {
-  position: absolute;
-  inset: 0;
-  animation: card-aura-breathe 6s ease-in-out infinite;
-}
-.card-aura:before {
-  content: '';
-  position: absolute;
-  inset: -12% -24%;
-  background:
-    radial-gradient(ellipse at 45% 40%, rgb(var(--aura-primary) / 0.28), transparent 63%),
-    radial-gradient(ellipse at 60% 65%, rgb(var(--aura-secondary) / 0.16), transparent 60%);
-}
-.card-aura:after {
-  content: '';
-  position: absolute;
-  inset: -12% -24%;
-  background: radial-gradient(#0a0614a0 1px, transparent 1px) 0 0 / 4px 4px;
-  mask-image: radial-gradient(ellipse, #000 30%, transparent 67%);
-}
 .focus-art {
   position: relative;
 }
@@ -547,15 +527,6 @@ textarea:focus-visible {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-  }
-}
-@keyframes card-aura-breathe {
-  0%,
-  100% {
-    opacity: 0.82;
-  }
-  50% {
-    opacity: 1;
   }
 }
 .card-slot.dealing {

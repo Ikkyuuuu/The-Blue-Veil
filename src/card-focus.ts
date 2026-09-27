@@ -30,7 +30,7 @@ export const CARD_AURAS: Record<string, Aura> = {
 
 export function createCardFocus(element: HTMLElement) {
   element.innerHTML =
-    '<div class="focus-veil"></div><div class="focus-center"><div class="card-aura"></div><div class="focus-art"></div></div>';
+    '<div class="focus-veil"></div><div class="focus-center"><div class="focus-art"></div></div>';
   const art = element.querySelector<HTMLElement>('.focus-art')!;
   let current = '';
   return {

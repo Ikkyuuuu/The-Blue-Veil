@@ -86,11 +86,11 @@ test('the explained card is centered, themed and follows reading navigation', as
 
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.getByRole('button', { name: 'Open game menu' }).click();
-  await expect(page.locator('.card-aura')).toHaveCSS('animation-play-state', 'paused');
+  await expect(page.locator('.focus-reveal')).toHaveCSS('animation-play-state', 'paused');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await expect(page.locator('.card-aura')).toHaveCSS('animation-play-state', 'running');
+  await expect(page.locator('.focus-reveal')).toHaveCSS('animation-play-state', 'running');
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expect(page.locator('.card-aura')).toHaveCSS('animation-name', 'none');
+  await expect(page.locator('.focus-reveal')).toHaveCSS('animation-name', 'none');
   await page.getByRole('button', { name: 'Continue reading', exact: true }).click();
   await page.getByRole('button', { name: 'Continue reading', exact: true }).click();
   await page.getByRole('button', { name: 'Continue reading', exact: true }).click();
