@@ -2,6 +2,8 @@
 
 _Three cards. Three candles. One question on your mind._
 
+<img src="docs/images/tent-entrance.png" width="100%" alt="The Blue Veil entrance: a purple tent at a deserted fairground, blue light between its curtains, and the prompt to press Space">
+
 At the edge of a silent fairground, a blue light slips through the curtains of a small tent. The wind moves the fabric. Someone is waiting inside.
 
 Press **Space** and walk in. Across the table sits a hooded figure whose face you cannot see. A blue orb glows between you, beside a deck of cards and three burning candles.
@@ -20,6 +22,8 @@ Ask your question. Draw three cards. Watch the orb stir as the reader considers 
 4. **Wait for the reader.** The orb brightens and hums before the interpretation begins.
 5. **Explore the reading.** Each card appears in the center with its own aura. Use Back and Next to follow the reading, or select a card on the table to inspect it again.
 
+<img src="docs/images/meet-the-reader.png" width="100%" alt="A faceless hooded reader sits behind a glowing blue orb and three lit candles, asking what you wish to know">
+
 Sound begins with your first interaction. Headphones help bring out the wind, footsteps, paper sounds, and the reader's voice blips.
 
 ### Three candles
@@ -27,6 +31,8 @@ Sound begins with your first interaction. Headphones help bring out the wind, fo
 Each accepted question extinguishes one candle. After the third, the reader has only one thing left to say:
 
 > “You ask too much. Come back tomorrow.”
+
+<img src="docs/images/three-candles-spent.png" width="100%" alt="The same reading table with all three candles extinguished and the reader asking the player to return tomorrow">
 
 The allowance resets at **midnight in Bangkok**. There are three questions per browser each day, plus a shared three-question allowance for the same network. People on the same Wi-Fi may share those candles; opening an incognito window does not reset the network allowance.
 

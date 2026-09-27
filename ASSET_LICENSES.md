@@ -20,6 +20,8 @@ The owner supplied AI-generated exterior/interior stills and four video loops fo
 
 The four web animations preserve the video streams of the owner's 1280 × 720 loop masters. They are remuxed without re-encoding; frame pixels, timing and blended joins are preserved. The color/pixel effect is rendered locally at playback time, avoiding an additional compressed export. The source videos' existing compression remains. The still images and purchased deck artwork remain unchanged.
 
+The README screenshots in `docs/images/` were captured from the local game on 27 September 2026 with its live pixel shader enabled. They show the entrance, reader, and exhausted candle allowance. They contain no player questions, reading results, or private card artwork; the source card galleries and generation prompts remain excluded.
+
 ## Video-to-Pixel-Art shader
 
 The Acid palette, Bayer dithering and Sobel edge algorithm in `src/pixel-shader.ts` are adapted from [Video-to-Pixel-Art](https://collidingscopes.github.io/video-to-pixel-art/) by **Alan Ang / collidingScopes**, [source revision 773cbdea04cae8a3e87d2f273b1c2e5a41851085](https://github.com/collidingScopes/video-to-pixel-art/tree/773cbdea04cae8a3e87d2f273b1c2e5a41851085), copyright 2024 Alan Ang. The full MIT copyright and permission notice is included at `public/licenses/video-to-pixel-art-MIT.txt` and is served with the game. The game supplies its own rendering lifecycle and combines the unlit candle plate with the moving reader before applying the effect. The upstream tool's UI, webcam access, video recorder and unrelated palettes are not bundled.
