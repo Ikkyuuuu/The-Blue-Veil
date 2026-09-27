@@ -1,3 +1,9 @@
+import { createEffectBuffers, createWind, createOrbTone, type Effect } from './sound-effects';
+import { BackgroundMusic } from './music';
+
+// A slow, deliberate walk: one footfall every 1.1 seconds of the entrance clip.
+const FOOTSTEP_INTERVAL = 1.1;
+
 // Original synthesized character voice; no samples or speech service are used.
 export function readerBlip(
   ctx: BaseAudioContext,
@@ -40,6 +46,19 @@ export class Sound {
   private paused = false;
   private lastVoice = -Infinity;
   private voices = new Set<ReturnType<typeof readerBlip>>();
+  private effects?: Record<Effect, AudioBuffer>;
+  private wind?: ReturnType<typeof createWind>;
+  private orbTone?: GainNode;
+  private orbLevel = 0;
+  private orbActive = false;
+  private readerSpeaking = false;
+  private music?: BackgroundMusic;
+  private outdoors = true;
+  private walkingVideo?: HTMLVideoElement;
+  private footstepTimer?: ReturnType<typeof setTimeout>;
+  private lastWalkTime = -1;
+  private lastStep = -1;
+  private transients = new Set<{ source: AudioScheduledSourceNode; gain: GainNode }>();
   muted = false;
 
   private initialize() {
@@ -48,16 +67,101 @@ export class Sound {
     this.master = this.ctx.createGain();
     this.master.gain.value = 0;
     this.master.connect(this.ctx.destination);
-    const ambience = this.ctx.createGain();
-    ambience.gain.value = 0.012;
-    ambience.connect(this.master);
-    for (const frequency of [73.42, 110, 146.83]) {
-      const oscillator = this.ctx.createOscillator();
-      oscillator.type = 'sine';
-      oscillator.frequency.value = frequency;
-      oscillator.connect(ambience);
-      oscillator.start();
-    }
+    this.effects = createEffectBuffers(this.ctx);
+    this.wind = createWind(this.ctx, this.master);
+    this.orbTone = createOrbTone(this.ctx, this.master);
+    this.orbTone.gain.value = this.orbLevel;
+    this.updateWind();
+    this.music = new BackgroundMusic(this.ctx, this.master);
+  }
+
+  private updateMusic(retry = false) {
+    this.music?.update(
+      {
+        enabled: !this.outdoors && !this.muted && !this.paused && this.ctx?.state === 'running',
+        speaking: this.readerSpeaking,
+        orb: this.orbActive,
+      },
+      retry,
+    );
+  }
+
+  speaking(active: boolean) {
+    this.readerSpeaking = active;
+    this.updateMusic();
+  }
+
+  private updateWind() {
+    if (!this.ctx || !this.wind) return;
+    this.wind.mix.gain.setTargetAtTime(this.outdoors ? 1 : 0.2, this.ctx.currentTime, 0.7);
+    this.wind.low.frequency.setTargetAtTime(this.outdoors ? 650 : 280, this.ctx.currentTime, 0.7);
+  }
+
+  scene(outdoors: boolean, walkingVideo?: HTMLVideoElement) {
+    this.outdoors = outdoors;
+    this.updateWind();
+    this.updateMusic();
+    if (this.walkingVideo === walkingVideo) return;
+    this.walkingVideo = walkingVideo;
+    this.lastWalkTime = -1;
+    this.lastStep = -1;
+    this.scheduleFootsteps();
+  }
+
+  private scheduleFootsteps() {
+    clearTimeout(this.footstepTimer);
+    if (!this.walkingVideo || this.muted || this.paused || this.ctx?.state !== 'running') return;
+    const tick = () => {
+      const video = this.walkingVideo;
+      if (!video || this.muted || this.paused || this.ctx?.state !== 'running') return;
+      const time = video.currentTime;
+      const step = Math.floor(time / FOOTSTEP_INTERVAL);
+      // Use the media clock: buffering, seeking or a paused clip cannot march on.
+      // A delayed callback emits at most one step, never a backlog of footsteps.
+      if (
+        !video.paused &&
+        !video.ended &&
+        !video.seeking &&
+        video.readyState >= 2 &&
+        time > this.lastWalkTime &&
+        this.lastWalkTime >= 0 &&
+        step !== this.lastStep
+      ) {
+        this.effect('step', step % 2 ? 0.13 : -0.13, step % 2 ? 1.03 : 0.97);
+      }
+      this.lastStep = step;
+      this.lastWalkTime = time;
+      this.footstepTimer = setTimeout(tick, 60);
+    };
+    this.footstepTimer = setTimeout(tick, 60);
+  }
+
+  private track(source: AudioScheduledSourceNode, gain: GainNode, cleanup: () => void) {
+    const transient = { source, gain };
+    this.transients.add(transient);
+    source.addEventListener(
+      'ended',
+      () => {
+        this.transients.delete(transient);
+        source.disconnect();
+        gain.disconnect();
+        cleanup();
+      },
+      { once: true },
+    );
+  }
+
+  effect(name: Effect, pan = 0, rate = 1) {
+    if (this.muted || this.paused || this.ctx?.state !== 'running') return;
+    const source = this.ctx.createBufferSource(),
+      gain = this.ctx.createGain();
+    const position = this.ctx.createStereoPanner();
+    source.buffer = this.effects![name];
+    source.playbackRate.value = rate;
+    position.pan.value = pan;
+    source.connect(gain).connect(position).connect(this.master!);
+    this.track(source, gain, () => position.disconnect());
+    source.start();
   }
 
   private applyVolume() {
@@ -67,19 +171,45 @@ export class Sound {
     this.master.gain.setTargetAtTime(this.muted || this.paused ? 0 : 1, now, 0.01);
   }
 
+  orb(active: boolean, phase: number) {
+    if (active !== this.orbActive) {
+      this.orbActive = active;
+      this.updateMusic();
+    }
+    this.orbLevel = active ? 0.35 + 0.65 * Math.sin(Math.PI * phase) ** 2 : 0;
+    if (!this.ctx || !this.orbTone) return;
+    this.orbTone.gain.setTargetAtTime(this.orbLevel, this.ctx.currentTime, active ? 0.12 : 0.18);
+  }
+
   // Called inside a user gesture, including when returning to a saved reading.
   async activate() {
-    if (this.muted || this.paused || this.ctx?.state === 'running') return;
+    if (this.muted || this.paused) return;
+    if (this.ctx?.state === 'running') {
+      this.updateMusic(true);
+      return;
+    }
     this.initialize();
     await this.ctx!.resume();
     // The player may have muted or paused while the browser was resuming audio.
     this.applyVolume();
+    this.scheduleFootsteps();
+    this.updateMusic(true);
   }
 
   async toggle() {
     this.muted = !this.muted;
-    if (this.muted) this.stopVoice();
-    else {
+    if (this.muted) {
+      this.stopVoice();
+      clearTimeout(this.footstepTimer);
+      // Muted one-shots must not reappear if the player unmutes immediately.
+      const now = this.ctx?.currentTime ?? 0;
+      for (const { source, gain } of this.transients) {
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setTargetAtTime(0, now, 0.003);
+        source.stop(now + 0.015);
+      }
+      this.transients.clear();
+    } else {
       try {
         await this.activate();
       } catch (error) {
@@ -88,6 +218,8 @@ export class Sound {
       }
     }
     this.applyVolume();
+    this.scheduleFootsteps();
+    this.updateMusic();
     return !this.muted;
   }
 
@@ -115,32 +247,18 @@ export class Sound {
     this.voices.clear();
   }
 
-  chime(index = 0) {
-    if (this.muted || this.paused || this.ctx?.state !== 'running') return;
-    const now = this.ctx.currentTime;
-    for (const [n, freq] of [293.66, 440, 587.33].entries()) {
-      const oscillator = this.ctx.createOscillator(),
-        gain = this.ctx.createGain();
-      oscillator.frequency.value = freq * (1 + index * 0.12);
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.045 / (n + 1), now + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.6);
-      oscillator.connect(gain);
-      gain.connect(this.master!);
-      oscillator.start(now);
-      oscillator.stop(now + 1.7);
-      oscillator.onended = () => {
-        oscillator.disconnect();
-        gain.disconnect();
-      };
-    }
-  }
-
   visibility(hidden: boolean) {
     this.paused = hidden;
     if (hidden) this.stopVoice(true);
     this.applyVolume();
+    this.updateMusic();
+    clearTimeout(this.footstepTimer);
     if (this.ctx)
-      void (hidden || this.muted ? this.ctx.suspend() : this.ctx.resume()).catch(() => {});
+      void (hidden || this.muted ? this.ctx.suspend() : this.ctx.resume())
+        .then(() => {
+          this.scheduleFootsteps();
+          this.updateMusic();
+        })
+        .catch(() => {});
   }
 }

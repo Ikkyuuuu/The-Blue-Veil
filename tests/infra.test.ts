@@ -18,6 +18,15 @@ describe('infrastructure security', () => {
       SourceArn: Match.anyValue(),
     });
     t.hasResourceProperties('AWS::SQS::Queue', { SqsManagedSseEnabled: true });
+    t.hasResourceProperties('AWS::SecretsManager::Secret', {
+      GenerateSecretString: { PasswordLength: 64, ExcludePunctuation: true },
+    });
+    for (const table of Object.values(tables))
+      expect(table.Properties.SSESpecification.SSEEnabled).toBe(true);
+    const lambdas = Object.values(t.findResources('AWS::Lambda::Function'));
+    expect(
+      lambdas.filter((fn: any) => fn.Properties.Environment?.Variables?.NETWORK_SECRET_ARN),
+    ).toHaveLength(1);
   });
   it('uses the FREE plan, signed origins, private assets and an uncached API', () => {
     const stack = new EdgeStack(new App(), 'TestEdge');
@@ -43,6 +52,9 @@ describe('infrastructure security', () => {
           Match.objectLike({
             PathPattern: '/api/*',
             CachePolicyId: '413f160a-7fce-4cc4-9e90-24b55beafc7d',
+            FunctionAssociations: Match.arrayWith([
+              Match.objectLike({ EventType: 'viewer-request', FunctionARN: Match.anyValue() }),
+            ]),
           }),
         ]),
       }),

@@ -25,6 +25,7 @@ secrets/
 .npmrc
 *.pem
 *.key
+*.network-key
 *.p12
 *.pfx
 *.jks
@@ -64,9 +65,13 @@ venv/
 /artifacts/
 /asset-sources/
 /captures/
-# Supplied deck is usable locally; exclude originals until redistribution rights
-# are verified. Keep its portable import manifest and license notes in Git.
-/public/assets/deck/*.png
+# All card artwork, runtime copies and manifests stay private for the asset pack.
+# Ignore the whole directory so future versions and formats are covered too.
+/public/assets/deck/
+# Card-generation recipes and copy galleries are private creative materials.
+/docs/*-arcana-prompts.*
+/docs/card-prompts/
+/docs/deck-prompts/
 
 # Infrastructure outputs and state may contain account identifiers or secrets.
 cdk.out/

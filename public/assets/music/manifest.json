@@ -1,0 +1,14 @@
+{
+  "title": "A Dragon's Lullaby",
+  "version": "2023 Remaster",
+  "artist": "Scott Buckley",
+  "source": "https://www.scottbuckley.com.au/library/a-dragons-lullaby-2023/",
+  "download": "https://www.scottbuckley.com.au/library/wp-content/uploads/2023/02/ADragonsLullaby2023.mp3",
+  "license": "CC-BY-4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "file": "a-dragons-lullaby-2023.mp3",
+  "sha256": "fe07f1c8e0b10743c7ed72348bf7fe4692e8471358f0f7f48d0a4e8ca8ae4200",
+  "bytes": 6729383,
+  "durationSeconds": 168.176327,
+  "modifications": "MP3 unchanged. Playback gain, dialogue/orb ducking and repeat-edge fades are applied at runtime."
+}

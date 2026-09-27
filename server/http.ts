@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Game, GameError, safeEqual } from './game.js';
+import { networkQuota } from './network-quota.js';
 
 export type RequestData = {
   method: string;
@@ -7,6 +8,8 @@ export type RequestData = {
   headers: Record<string, string | undefined>;
   body: string;
   secure: boolean;
+  // Set only by the transport adapter, never copied from browser-supplied data.
+  clientIp?: string;
 };
 export type ResponseData = {
   status: number;
@@ -22,7 +25,12 @@ export const securityHeaders: Record<string, string> = {
   'Content-Security-Policy':
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
 };
-export function api(game: Game, origins: string[], onQueued?: (id: string) => void) {
+export function api(
+  game: Game,
+  origins: string[],
+  onQueued?: (id: string) => void,
+  networkSecret?: () => Promise<string>,
+) {
   return async (request: RequestData): Promise<ResponseData> => {
     const headers = {
       ...securityHeaders,
@@ -32,6 +40,8 @@ export function api(game: Game, origins: string[], onQueued?: (id: string) => vo
       ...(request.secure ? { 'Strict-Transport-Security': 'max-age=31536000' } : {}),
     };
     try {
+      const network = async () =>
+        networkSecret ? networkQuota(await networkSecret(), request.clientIp) : undefined;
       const name = request.secure ? '__Host-tarot_sid' : 'tarot_dev_sid';
       const token = (request.headers.cookie ?? '')
         .split(';')
@@ -56,11 +66,12 @@ export function api(game: Game, origins: string[], onQueued?: (id: string) => vo
         const body = parse();
         if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length)
           throw new GameError(400, 'INVALID_REQUEST', 'Invalid session request.');
+        const quota = await network();
         const result = await game.session(token);
         return {
           status: 200,
           headers,
-          body: JSON.stringify(await game.sessionView(result.session)),
+          body: JSON.stringify(await game.sessionView(result.session, quota)),
           cookie: `${name}=${result.token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.max(0, Math.floor((result.session.expiresAt - game.clock()) / 1000))}${request.secure ? '; Secure' : ''}`,
         };
       }
@@ -72,9 +83,9 @@ export function api(game: Game, origins: string[], onQueued?: (id: string) => vo
       }
       let result: unknown;
       if (request.path === '/api/session' && request.method === 'GET')
-        result = await game.sessionView(session);
+        result = await game.sessionView(session, await network());
       else if (request.path === '/api/readings' && request.method === 'POST')
-        result = await game.submit(session, parse());
+        result = await game.submit(session, parse(), await network());
       else {
         const match = /^\/api\/readings\/([a-f0-9]{32})(\/draw)?$/.exec(request.path);
         if (!match) throw new GameError(404, 'NOT_FOUND', 'This path cannot be found.');

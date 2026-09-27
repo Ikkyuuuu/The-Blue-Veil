@@ -44,6 +44,8 @@ precision mediump float;
 varying vec2 uv;
 uniform sampler2D baseTexture;
 uniform sampler2D motionTexture;
+uniform sampler2D previousMotionTexture;
+uniform float sourceBlend;
 uniform float motionMix;
 uniform bool interiorMask;
 uniform vec2 resolution;
@@ -69,6 +71,9 @@ float litCandle(vec2 coord, vec3 light) {
 vec3 scene(vec2 coord) {
   vec3 base = texture2D(baseTexture, coord).rgb;
   vec3 motion = texture2D(motionTexture, coord).rgb;
+  if (sourceBlend < 1.0) {
+    motion = mix(texture2D(previousMotionTexture, coord).rgb, motion, sourceBlend);
+  }
   float amount = motionMix;
   if (interiorMask && min(candles[0].z, min(candles[1].z, candles[2].z)) < 1.0
       && coord.y > 0.46 && coord.y < 0.89 && (coord.x < 0.27 || coord.x > 0.70)) {

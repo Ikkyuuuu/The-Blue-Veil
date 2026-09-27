@@ -1,0 +1,13 @@
+'A Dragon's Lullaby' by Scott Buckley - released under CC-BY 4.0.
+www.scottbuckley.com.au
+
+Version: 2023 Remaster
+Source: https://www.scottbuckley.com.au/library/a-dragons-lullaby-2023/
+License: https://creativecommons.org/licenses/by/4.0/
+Full license: CC-BY-4.0.txt (included alongside this notice)
+Composer's usage information: https://www.scottbuckley.com.au/library/using-this-music/
+
+The original MP3 is included unchanged as music accompanying The Blue Veil game.
+The game applies volume changes, dialogue/orb ducking and gentle fades at the
+repeat boundary during playback. This music remains under its own license;
+it is not covered by any future license chosen for this game's source code.

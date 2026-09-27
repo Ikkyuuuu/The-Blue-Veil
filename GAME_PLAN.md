@@ -13,7 +13,7 @@ Proposed launch defaults, adjustable during development:
 | Access | Anonymous; no registration, payment, email collection, or account recovery |
 | Daily boundary | Midnight in Asia/Bangkok, computed by the server |
 | Spread | Situation / Hidden influence / Path ahead |
-| Deck | 22 supplied Major Arcana; three distinct cards; upright/reversed orientations; Minor Arcana deferred |
+| Deck | 78 selected generated cards; three distinct cards; upright/reversed orientations |
 | Question | Maximum 500 Unicode characters and 2 KB UTF-8; English response |
 | Interpretation | Roughly 180–260 words, three short card explanations, synthesis, one reflective next step |
 | Session | Secure browser cookie with 30-day lifetime; one active reading per browser |
@@ -21,7 +21,7 @@ Proposed launch defaults, adjustable during development:
 | Audience | General audience visual design, with sensitive-topic handling; not marketed to children |
 | Launch scale | Controlled beta, initially at most 100 accepted readings/day and 2,000/month globally |
 
-This is a browser-level allowance. Clearing cookies, private browsing, another browser, or another device can create another identity. Do not use device fingerprinting or present it as a strict per-person limit. If stronger enforcement becomes necessary, add verified accounts as a separate product decision.
+Owner update, 27 September 2026: retain anonymous access and add a shared three-question daily network allowance alongside the browser allowance. Clearing cookies/private browsing creates a different session, but cannot reset the allowance for the same IPv4 address or IPv6 /64. Shared Wi-Fi/carrier networks may limit several players; VPNs or network changes can bypass it. Do not present this as a strict per-person/device limit. Store only daily secret-keyed HMAC identifiers, with encrypted DynamoDB storage and short retention; never collect MAC addresses or device fingerprints. Reading ownership remains session-specific. See [network implementation](docs/NETWORK_LIMITS.md).
 
 ## 2. Player experience
 
@@ -72,7 +72,7 @@ Asset implementation and remaining polish:
 - Implemented: preserve the original candle flames, wax and halos from the idle/reading loops inside the live pixel effect. Reveal the unlit plate only around spent candles; protect neighboring lit flames. Reduced motion applies the same composition to the original lit still. CSS replacement flames and the earlier central mask are retained only for the WebGL fallback. Inspect mask edges and lighting across complete loops before release.
 - Implemented at the owner's request: live local WebGL pixel effects over the full-length original 720p masters, with no second video encode. Match the supplied Acid palette settings: pixel size 1, dithering 0.52, edge threshold 0.48, edge intensity 0.25, and the requested black RGB(0, 0, 0) edges. Process scene stills and the moving reader together; keep card art and text outside the shader. Retain Video-to-Pixel-Art / Alan Ang / collidingScopes credit and the MIT notice. The original scene is the WebGL fallback; reduced motion uses a processed still.
 - Add a reusable extinguish/smoke effect while retaining the original source flames. Candle states require zero new full-screen video combinations. Inspect all frames for moving halos and seams; the spent-candle mask must remove the warm light along with the flame.
-- Implemented: the supplied 22 reworked Major Arcana and card back by Chorline, copied unchanged. Raw paid PNGs are ignored; a public-source user imports their own licensed pack. Minor Arcana will be supplied later. See `ASSET_LICENSES.md`.
+- Implemented: all 78 selected generated faces with upright/reversed meanings, card auras and a gallery grouped by suit. The purchased Chorline card back stays unchanged. Generated source galleries/runtime copies and paid PNGs remain ignored; a fresh checkout imports separately supplied assets. See `ASSET_LICENSES.md`.
 - Add restrained cloth/wind, draw, flip, extinguish and orb sound effects. Use one controlled ambient audio track so swapping videos does not restart or double the soundtrack. Mute videos in the app.
 - Export small poster images, mobile and desktop video encodes, and compressed card textures. Inspect seams at normal playback and slow motion. Preserve original source files.
 

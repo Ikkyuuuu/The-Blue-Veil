@@ -12,7 +12,7 @@ import {
 import { LocalGenerator, validateAnswer } from '../server/generator';
 import { processReading, cleanup } from '../server/worker';
 import { api } from '../server/http';
-import { CARDS } from '../shared/cards';
+import { CARDS, DECK_VERSION } from '../shared/cards';
 
 async function setup(settings = {}) {
   const store = new MemoryStore();
@@ -44,10 +44,14 @@ describe('authoritative reading engine', () => {
     expect(saved?.leaseId).toBe(owner?.leaseId);
     expect(saved?.attempts).toBe(1);
   });
-  it('uses exactly the 22 supplied major arcana', () => {
-    expect(CARDS).toHaveLength(22);
-    expect(new Set(CARDS.map((c) => c.id)).size).toBe(22);
-    expect(CARDS.every((c) => c.image.endsWith('.png'))).toBe(true);
+  it('advertises the complete 78-card deck', async () => {
+    const { game, session } = await setup();
+    expect(CARDS).toHaveLength(78);
+    expect(new Set(CARDS.map((c) => c.id)).size).toBe(78);
+    expect((await game.sessionView(session)).deckSize).toBe(78);
+    expect(CARDS.filter((c) => c.group === 'major')).toHaveLength(22);
+    for (const group of ['wands', 'cups', 'swords', 'pentacles'])
+      expect(CARDS.filter((c) => c.group === group)).toHaveLength(14);
   });
   it('keeps tokens and CSRF values out of persisted session records', async () => {
     const { store, session, token, game } = await setup();
@@ -84,6 +88,8 @@ describe('authoritative reading engine', () => {
     });
     expect(r.cards).toHaveLength(0);
     const stored = await store.get<Reading>(`reading#${r.id}`);
+    expect(stored?.deckVersion).toBe(DECK_VERSION);
+    expect(stored?.cards.every((drawn) => CARDS.some((card) => card.id === drawn.id))).toBe(true);
     expect(new Set(stored?.cards.map((x) => x.id)).size).toBe(3);
     const action = { expectedIndex: 0, actionId: randomUUID() };
     const [a, b] = await Promise.all([

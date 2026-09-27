@@ -1,8 +1,19 @@
+import { MINOR_ARCANA, type MinorSuit } from './minor-arcana.js';
+
+export type CardGroup = 'major' | MinorSuit;
+export const CARD_GROUPS: { id: CardGroup; name: string }[] = [
+  { id: 'major', name: 'Major Arcana' },
+  { id: 'wands', name: 'Wands' },
+  { id: 'cups', name: 'Cups' },
+  { id: 'swords', name: 'Swords' },
+  { id: 'pentacles', name: 'Pentacles' },
+];
 export type Card = {
   id: string;
   name: string;
   numeral: string;
   image: string;
+  group: CardGroup;
   upright: string;
   reversed: string;
   keywords: string[];
@@ -163,17 +174,23 @@ const definitions: [string, string, string, string, string][] = [
     'completion,integration,wholeness',
   ],
 ];
-export const CARDS: Card[] = definitions.map(([name, numeral, upright, reversed, keywords]) => ({
-  id: name.toLowerCase().replaceAll(' ', '-'),
-  name,
-  numeral,
-  upright,
-  reversed,
-  keywords: keywords.split(','),
-  image: `/assets/deck/${name.toLowerCase().replaceAll(' ', '-')}.png`,
+export const DECK_VERSION = 'blue-veil-generated-78-v1';
+export const CARDS: Card[] = [
+  ...definitions.map(([name, numeral, upright, reversed, keywords]) => ({
+    name,
+    numeral,
+    upright,
+    reversed,
+    keywords: keywords.split(','),
+    group: 'major' as const,
+  })),
+  ...MINOR_ARCANA,
+].map((card) => ({
+  ...card,
+  id: card.name.toLowerCase().replaceAll(' ', '-'),
+  image: `/assets/deck/${DECK_VERSION}/${card.name.toLowerCase().replaceAll(' ', '-')}.webp`,
 }));
 export const CARD_MAP = new Map(CARDS.map((card) => [card.id, card]));
-export const DECK_VERSION = 'pixel-major-arcana-v1';
 export const POSITIONS = ['The situation', 'The hidden influence', 'The path ahead'] as const;
 export type DrawnCard = { id: string; reversed: boolean };
 export type Interpretation = {

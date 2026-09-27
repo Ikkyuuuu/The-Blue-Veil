@@ -1,15 +1,27 @@
 import './style.css';
 import './ui.css';
-import { CARDS, CARD_MAP, POSITIONS, type ReadingView, type SessionView } from '../shared/cards';
+import {
+  CARDS,
+  CARD_GROUPS,
+  CARD_MAP,
+  POSITIONS,
+  type ReadingView,
+  type SessionView,
+} from '../shared/cards';
 import { ApiError, Client } from './api';
 import { Sound } from './audio';
 import { createPixelScenes } from './pixel-scenes';
 import { createCardMotion } from './card-motion';
 import { createCardFocus } from './card-focus';
+import { createCardArt } from './card-art';
 import { prepareEntrance, waitForCurtainMatch } from './entrance';
+import { createReadingOrb } from './reading-orb';
 
 const speaker =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h5l5-5v16l-5-5H3zM17 8v8m4-11v14"/></svg>';
+// GitHub Octicons mark-github-16; see /licenses/octicons-MIT.txt.
+const github =
+  '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656"/></svg>';
 const fullscreenPaths = {
   enter: 'M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5',
   exit: 'M4 9h5V4m6 0v5h5M9 20v-5H4m16 0h-5v5',
@@ -22,13 +34,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="scene-frame entrance-scene"><video id="entrance-video" class="scene-image" muted playsinline preload="none" src="/assets/scenes/entrance-master.mp4?v=live-pixel-1"></video></div>
     <div class="vignette"></div><div class="motes">${Array.from({ length: 9 }, (_, i) => `<i style="--n:${i}"></i>`).join('')}</div>
   </div>
-  <div class="game-controls"><span id="preview-badge" hidden title="Local preview — sample readings">DEMO</span><button id="sound" class="icon-button" aria-label="Turn game sound off" aria-pressed="true" title="Sound · dialogue, ambience and cards">${speaker}</button><button id="fullscreen-toggle" class="icon-button" aria-label="Enter fullscreen" aria-pressed="false" title="Enter fullscreen"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fullscreen-glyph" d="${fullscreenPaths.enter}"/></svg></button><button id="menu-toggle" class="icon-button" aria-label="Open game menu" title="Menu · Esc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M17 4v16"/></svg></button></div>
+  <div class="game-controls"><a id="github-link" class="icon-button" href="https://github.com/Ikkyuuuu/The-Blue-Veil" target="_blank" rel="noopener noreferrer" aria-label="The Blue Veil on GitHub (opens in a new tab)" title="View on GitHub · opens in a new tab">${github}</a><button id="sound" class="icon-button" aria-label="Turn game sound off" aria-pressed="true" title="Sound · dialogue, ambience and cards">${speaker}</button><button id="fullscreen-toggle" class="icon-button" aria-label="Enter fullscreen" aria-pressed="false" title="Enter fullscreen"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fullscreen-glyph" d="${fullscreenPaths.enter}"/></svg></button><button id="menu-toggle" class="icon-button" aria-label="Open game menu" title="Menu · Esc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M17 4v16"/></svg></button></div>
   <section id="outside" aria-label="Outside the tent"><button id="enter" aria-label="Enter the tent"><span class="desktop-prompt">PRESS SPACE TO ENTER</span><span class="touch-prompt">TAP TO ENTER</span></button></section>
   <button id="skip-entry" class="quiet-action" aria-label="Skip the walk" hidden>SKIP ▸</button>
   <section id="inside" aria-label="Your tarot reading" hidden>
     <div id="card-focus" aria-hidden="true"></div>
-    <div id="speech" class="speech"><p id="speech-title" hidden></p><p id="dialogue" aria-hidden="true"></p><p id="reader-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></p><div class="speech-actions"><button id="previous-line" aria-label="Previous part of the reading" hidden>◂</button><button id="continue-reading" aria-label="Continue reading" title="Space or click to continue" hidden>▾</button></div></div>
-    <form id="question-form" autocomplete="off"><label class="sr-only" for="question">Your question</label><div class="question-shell"><span aria-hidden="true">&gt;</span><textarea id="question" rows="2" maxlength="1000" placeholder="Type your question..." aria-describedby="question-help"></textarea><button id="submit-question" aria-label="Ask the reader" type="submit" title="Ask · Enter">↵</button></div><span id="question-help" class="sr-only">Ask in 3 to 500 characters. Avoid names and personal details. Enter sends; Shift and Enter adds a line.</span></form>
+    <div id="speech" class="speech" tabindex="-1"><p id="speech-title" hidden></p><p id="dialogue" aria-hidden="true"></p><p id="reader-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></p><div class="speech-actions"><button id="previous-line" title="Previous part of the reading" hidden>Back</button><button id="continue-reading" title="Space or click to continue" hidden>Next</button></div></div>
+    <form id="question-form" autocomplete="off"><label class="sr-only" for="question">Your question</label><div class="question-shell"><span aria-hidden="true">&gt;</span><textarea id="question" rows="1" maxlength="1000" placeholder="Type your question..." aria-describedby="question-help"></textarea><button id="submit-question" aria-label="Ask the reader" type="submit" title="Ask · Enter">↵</button></div><span id="question-help" class="sr-only">Ask in 3 to 500 characters. Avoid names and personal details. Enter sends; Shift and Enter adds a line.</span></form>
     <div id="table" hidden><p id="asked-question" class="sr-only"></p><button id="deck" class="deck" aria-label="Draw card 1 of 3">${Array.from({ length: 8 }, (_, index) => `<span class="deck-layer" style="--layer:${8 - index}" aria-hidden="true"></span>`).join('')}<img src="/assets/deck/back.png" alt="Tarot deck, face down" draggable="false"><span class="deck-hint">DRAW</span></button><div id="spread" class="spread" aria-label="Your three cards"></div></div>
     <div id="result-choices" hidden><button id="ask-again" class="game-choice" aria-label="Ask again">Ask again</button><button id="delete-reading" class="game-choice" aria-label="Delete this reading">Forget this reading</button></div>
     <p id="allowance-label" class="sr-only" aria-live="polite"></p>
@@ -62,6 +74,7 @@ let pendingSubmit: { question: string; id: string } | undefined,
 let entranceBlending = false;
 let entranceAnimations: Animation[] = [];
 let entranceRequest: AbortController | undefined;
+let completingReading: string | undefined;
 let pollTimer: ReturnType<typeof setTimeout> | undefined,
   resetTimer: ReturnType<typeof setTimeout> | undefined,
   typeTimer: ReturnType<typeof setInterval> | undefined,
@@ -71,11 +84,15 @@ const videos = ['exterior-video', 'interior-video', 'reading-video', 'entrance-v
 );
 const pixelScenes = createPixelScenes();
 const cardMotion = createCardMotion();
-const cardFocus = createCardFocus($('card-focus'));
+const cardFocus = createCardFocus($('card-focus'), () => sound.effect('inspect'));
+const readingOrb = createReadingOrb($<HTMLVideoElement>('reading-video'), (active, phase) =>
+  sound.orb(active, phase),
+);
 
 function visibility() {
   const paused = document.hidden || menu.open || info.open;
   for (const video of videos) {
+    if (video.id === 'reading-video') continue; // The orb owns its playback boundary.
     const active =
       ((stage === 'outside' || (stage === 'entering' && entranceBlending)) &&
         video.id === 'exterior-video') ||
@@ -86,6 +103,11 @@ function visibility() {
     else video.pause();
   }
   sound.visibility(paused);
+  readingOrb.update(paused, reduced.matches);
+  sound.scene(
+    stage === 'outside' || stage === 'entering',
+    stage === 'entering' && !reduced.matches ? $<HTMLVideoElement>('entrance-video') : undefined,
+  );
   pixelScenes.update(stage, paused, reduced.matches, entranceBlending);
   cardMotion.update(paused, reduced.matches);
   cardFocus.update(paused);
@@ -97,6 +119,7 @@ function visibility() {
     }
 }
 function setStage(next: Stage) {
+  if (next !== 'pending') readingOrb.cancel();
   cardFocus.show();
   stage = next;
   document.body.dataset.stage = next;
@@ -105,7 +128,7 @@ function setStage(next: Stage) {
   $('inside').hidden = next === 'outside' || next === 'entering';
   $('question-form').hidden = next !== 'asking';
   $('table').hidden = !['drawing', 'pending', 'result'].includes(next);
-  $('continue-reading').hidden = next !== 'result';
+  $('continue-reading').hidden = true;
   $('previous-line').hidden = true;
   $('result-choices').hidden = true;
   $('release-reading').hidden = !reading;
@@ -113,14 +136,22 @@ function setStage(next: Stage) {
   clearInterval(typeTimer);
   typing = false;
   sound.stopVoice();
+  sound.speaking(false);
   visibility();
+}
+function syncReadingNavigation() {
+  const ready = stage === 'result' && !typing;
+  $('continue-reading').hidden = !ready || resultFinished;
+  $('previous-line').hidden = !ready || lineIndex === 0;
 }
 function finishTyping(interrupted = true) {
   clearInterval(typeTimer);
   if (interrupted) sound.stopVoice();
   typing = false;
+  sound.speaking(false);
   $('dialogue').textContent = spokenText;
   $('speech').classList.remove('typing');
+  syncReadingNavigation();
 }
 function say(text: string, animate = true, title?: string) {
   clearInterval(typeTimer);
@@ -130,8 +161,11 @@ function say(text: string, animate = true, title?: string) {
   $('speech-title').hidden = !title;
   $('reader-announcement').textContent = [title, text].filter(Boolean).join('. ');
   $('dialogue').textContent = '';
+  $('dialogue').scrollTop = 0;
   typing = animate && !reduced.matches;
+  sound.speaking(typing);
   $('speech').classList.toggle('typing', typing);
+  syncReadingNavigation();
   if (!typing) {
     finishTyping();
     return;
@@ -172,9 +206,10 @@ function clearError() {
   $('error-box').hidden = true;
 }
 function syncSession(value: SessionView) {
+  const spentCandle =
+    session && value.remaining < session.remaining && value.resetsAt === session.resetsAt;
   session = value;
   client.csrf = value.csrf;
-  $('preview-badge').hidden = value.mode !== 'local';
   $('mode-label').textContent =
     value.mode === 'local' ? 'Local preview · sample readings' : 'The Blue Veil';
   $('allowance-label').textContent =
@@ -184,6 +219,7 @@ function syncSession(value: SessionView) {
   document
     .querySelectorAll('.scene-candle')
     .forEach((candle, index) => candle.classList.toggle('extinguished', index >= value.remaining));
+  if (spentCandle && stage !== 'outside' && stage !== 'entering') sound.effect('snuff');
   clearTimeout(resetTimer);
   resetTimer = setTimeout(
     () => void refreshAllowance(),
@@ -223,18 +259,19 @@ function showAsking() {
         $('question').focus({ preventScroll: true });
     }, 250);
 }
-function cardFigure(id: string, reversed: boolean) {
+function cardFigure(id: string, reversed: boolean, lazy = false) {
   const card = CARD_MAP.get(id)!;
   const figure = document.createElement('figure');
   figure.className = 'tarot-card';
-  const image = document.createElement('img');
-  image.src = card.image;
-  image.alt = `${card.name}, ${reversed ? 'reversed' : 'upright'}`;
-  image.draggable = false;
-  image.classList.toggle('reversed', reversed);
+  const art = createCardArt(
+    card,
+    reversed,
+    `${card.name}, ${reversed ? 'reversed' : 'upright'}`,
+    lazy,
+  );
   const caption = document.createElement('figcaption');
   caption.textContent = card.name;
-  figure.append(image, caption);
+  figure.append(art, caption);
   return figure;
 }
 function renderTable() {
@@ -298,10 +335,10 @@ function showLine() {
   $('result-choices').hidden = true;
   const line = lines[lineIndex];
   if (!line) return;
+  if (['continue-reading', 'previous-line'].includes(document.activeElement?.id ?? ''))
+    $('speech').focus({ preventScroll: true });
   cardFocus.show(line.cardIndex === undefined ? undefined : reading?.cards[line.cardIndex]);
   say(line.text, true, line.title);
-  $('continue-reading').hidden = false;
-  $('previous-line').hidden = lineIndex === 0;
   document
     .querySelectorAll('.card-slot')
     .forEach((slot, index) => slot.classList.toggle('speaking', line.cardIndex === index));
@@ -318,7 +355,7 @@ function advanceReading() {
   } else {
     resultFinished = true;
     cardFocus.show();
-    $('continue-reading').hidden = true;
+    syncReadingNavigation();
     $('result-choices').hidden = false;
     $('ask-again').focus({ preventScroll: true });
   }
@@ -333,7 +370,7 @@ function showResult() {
     for (const text of splitDialogue(item.interpretation))
       lines.push({
         text,
-        title: `${card.name}${reading!.cards[index].reversed ? ' · reversed' : ''}`,
+        title: `${card.name}${reading!.cards[index].reversed ? ' (Reverse)' : ''}`,
         cardIndex: index,
       });
   });
@@ -341,14 +378,40 @@ function showResult() {
   for (const text of splitDialogue(reading.answer.reflection)) lines.push({ text });
   renderTable();
   showLine();
-  $('continue-reading').focus({ preventScroll: true });
+  $(typing ? 'speech' : 'continue-reading').focus({ preventScroll: true });
 }
-async function acceptReading(value: ReadingView) {
+function beginReading() {
+  readingOrb.start();
+  setStage('pending');
+  renderTable();
+  say('Be still. Let me listen...');
+}
+async function revealReading(value: ReadingView, waitingForOrb: boolean) {
+  const id = value.id;
+  completingReading = id;
+  const boundary = waitingForOrb ? readingOrb.finish() : Promise.resolve(true);
+  try {
+    const [, finished] = await Promise.all([updateSession(), boundary]);
+    if (finished && reading?.id === id && (!waitingForOrb || stage === 'pending')) showResult();
+  } catch (error) {
+    if (reading?.id === id) showError(error);
+  } finally {
+    if (completingReading === id) completingReading = undefined;
+  }
+}
+async function acceptReading(value: ReadingView, newSpread = false) {
+  // Reconnect can race a final poll. Keep a ready answer while its last loop runs.
+  if (completingReading === value.id && stage === 'pending') return;
   reading = value;
   clearError();
+  if (newSpread && value.cards.length === 3 && value.status === 'complete' && stage !== 'pending')
+    beginReading();
   if (value.status === 'complete') {
-    await updateSession();
-    showResult();
+    clearTimeout(pollTimer);
+    // Mark the answer ready immediately, before any allowance refresh can delay
+    // the boundary. Restoring an already completed reading skips this ritual.
+    // Waiting must not hold the draw lock and disable Forget/menu controls.
+    void revealReading(value, stage === 'pending');
     return;
   }
   if (value.status === 'failed') {
@@ -370,9 +433,7 @@ async function acceptReading(value: ReadingView) {
     return;
   }
   if (stage !== 'pending') {
-    setStage('pending');
-    renderTable();
-    say('Be still. Let me listen...');
+    beginReading();
   }
   schedulePoll();
 }
@@ -384,9 +445,12 @@ function schedulePoll(delay = 1800) {
       schedulePoll(5000);
       return;
     }
+    const id = reading.id;
     void client
-      .read(reading.id)
-      .then(acceptReading)
+      .read(id)
+      .then((value) => {
+        if (reading?.id === id && stage === 'pending') return acceptReading(value);
+      })
       .catch((e) => {
         showError(e);
         schedulePoll(6000);
@@ -492,7 +556,6 @@ async function submitQuestion(event: SubmitEvent) {
     pendingSubmit = undefined;
     await updateSession();
     orbPulse();
-    sound.chime();
     await acceptReading(value);
     $('deck').focus({ preventScroll: true });
   } catch (e) {
@@ -518,10 +581,11 @@ async function drawCard() {
     pendingDraw = undefined;
     reading = value;
     renderTable();
-    sound.chime(index + 1);
+    sound.effect('draw', (index - 1) * 0.18);
     orbPulse();
     await cardMotion.deal($('deck'), $('spread').children[index] as HTMLElement);
-    await acceptReading(value);
+    sound.effect('land', (index - 1) * 0.18);
+    await acceptReading(value, value.cards.length === 3);
   } catch (e) {
     showError(e);
   } finally {
@@ -563,6 +627,23 @@ $('enter').addEventListener('click', () => void enter());
 $('skip-entry').addEventListener('click', () => void completeEntry());
 $<HTMLVideoElement>('entrance-video').addEventListener('ended', () => void completeEntry());
 $('question-form').addEventListener('submit', (event) => void submitQuestion(event as SubmitEvent));
+function fitQuestionText() {
+  const input = $<HTMLTextAreaElement>('question');
+  if (!input.clientWidth) return;
+  // Fit the text itself, so the shell's flex alignment centers it vertically.
+  // Long questions retain the existing height cap and native scrolling.
+  input.style.height = 'auto';
+  input.style.height = `${input.scrollHeight}px`;
+}
+$('question').addEventListener('input', fitQuestionText);
+let questionWidth = 0;
+new ResizeObserver(([entry]) => {
+  if (entry.contentRect.width === questionWidth) return;
+  questionWidth = entry.contentRect.width;
+  fitQuestionText();
+}).observe($('question'));
+window.addEventListener('resize', fitQuestionText);
+void document.fonts.ready.then(fitQuestionText);
 $('question').addEventListener('keydown', (event) => {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
     event.preventDefault();
@@ -585,6 +666,7 @@ $('previous-line').addEventListener('click', () => {
 $('ask-again').addEventListener('click', () => {
   $<HTMLTextAreaElement>('question').value = '';
   showAsking();
+  fitQuestionText();
 });
 $('reconnect').addEventListener('click', () => void reconnect());
 $('release-reading').addEventListener('click', () => void release());
@@ -650,14 +732,29 @@ document.addEventListener('fullscreenchange', syncFullscreen);
 syncFullscreen();
 $('about-privacy').addEventListener('click', () =>
   showInfo(
-    '<h2>Inside the tent</h2><p>Three questions per browser, each day. Each accepted question extinguishes one candle. They return at midnight in Bangkok. Clearing cookies or changing browsers creates a separate visit.</p><p>A browser cookie remembers your allowance. Questions and readings remain available for up to 24 hours. Forgetting a reading deletes its content; the daily count remains. Scheduled cleanup removes expired content, with storage expiration as a fallback.</p><p>The live game uses AWS Bedrock, potentially outside Thailand. Avoid names, addresses, passwords and personal details. Question text is not written to operational logs.</p><p>The local demo uses sample readings and sends no question to AI unless Bedrock mode is explicitly configured.</p><p>For entertainment and reflection. The cards do not establish facts about the future or replace professional advice.</p>',
+    '<h2>Inside the tent</h2><p>Three questions per browser each day, with a shared three-question allowance for your network address. People on the same Wi-Fi or shared connection may use the same allowance. Private browsing does not reset that network allowance. Each accepted question extinguishes one candle; allowances renew at midnight in Bangkok.</p><p>A browser cookie keeps your readings private to your visit. To limit repeat visits, the server converts your network address into a secret-keyed daily identifier. Raw IP addresses and MAC addresses are not saved in the game database. IPv6 addresses in the same network prefix share an allowance. Network counters expire within 48 hours, followed by scheduled cleanup and storage expiration; they are not a permanent device identity.</p><p>Questions and readings remain available for up to 24 hours. Forgetting a reading deletes its content; daily counts remain. The deployed database uses encryption at rest, and requests use HTTPS. No sign-in is required.</p><p>The live game uses AWS Bedrock, potentially outside Thailand. Avoid names, addresses, passwords and personal details. Questions, network addresses and daily identifiers are not written to application logs. Network identifiers are never sent to the reading model.</p><p>The local demo uses sample readings and sends no question to AI unless Bedrock mode is explicitly configured.</p><p>For entertainment and reflection. The cards do not establish facts about the future or replace professional advice.</p>',
   ),
 );
 $('about-deck').addEventListener('click', () => {
   showInfo(
-    '<h2>The Major Arcana</h2><p>22 cards. Three perspectives: the situation, the hidden influence, and the path ahead. Cards may be upright or reversed. Minor Arcana will arrive later.</p><p>Pixel Tarot Deck by <a href="https://chorline.itch.io/pixeltarotdeck" target="_blank" rel="noopener noreferrer">Chorline</a>, used unchanged. Interface font: VT323, under the SIL Open Font License.</p><p>Scene pixel effects adapted from <a href="https://collidingscopes.github.io/video-to-pixel-art/" target="_blank" rel="noopener noreferrer">Video-to-Pixel-Art</a> by Alan Ang / collidingScopes, under the <a href="/licenses/video-to-pixel-art-MIT.txt" target="_blank" rel="noopener noreferrer">MIT license</a>.</p><div id="deck-gallery"></div>',
+    '<h2>The Blue Veil deck</h2><p>78 cards: 22 Major Arcana and 56 Minor Arcana. Three perspectives: the situation, the hidden influence, and the path ahead. Cards may be upright or reversed.</p><p>Card faces generated for The Blue Veil with OpenAI image generation. Card back from Pixel Tarot Deck by <a href="https://chorline.itch.io/pixeltarotdeck" target="_blank" rel="noopener noreferrer">Chorline</a>, used unchanged. Interface font: VT323, under the SIL Open Font License.</p><p>Music: <a href="https://www.scottbuckley.com.au/library/a-dragons-lullaby-2023/" target="_blank" rel="noopener noreferrer">A Dragon&rsquo;s Lullaby (2023 Remaster)</a> by <a href="https://www.scottbuckley.com.au/" target="_blank" rel="noopener noreferrer">Scott Buckley</a> — released under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>. Original recording unchanged; volume and repeat fades applied in-game. <a href="/licenses/a-dragons-lullaby.txt" target="_blank" rel="noopener noreferrer">Music attribution</a>.</p><p>Scene pixel effects adapted from <a href="https://collidingscopes.github.io/video-to-pixel-art/" target="_blank" rel="noopener noreferrer">Video-to-Pixel-Art</a> by Alan Ang / collidingScopes, under the <a href="/licenses/video-to-pixel-art-MIT.txt" target="_blank" rel="noopener noreferrer">MIT license</a>.</p><div id="deck-filters" role="group" aria-label="Choose a card suit"></div><p id="deck-group-label" aria-live="polite"></p><div id="deck-gallery"></div>',
   );
-  $('deck-gallery').append(...CARDS.map((card) => cardFigure(card.id, false)));
+  for (const group of CARD_GROUPS) {
+    const button = document.createElement('button');
+    button.textContent = group.name;
+    button.dataset.group = group.id;
+    button.setAttribute('aria-pressed', String(group.id === 'major'));
+    button.addEventListener('click', () => {
+      $('deck-filters')
+        .querySelectorAll('button')
+        .forEach((other) => other.setAttribute('aria-pressed', String(other === button)));
+      const cards = CARDS.filter((card) => card.group === group.id);
+      $('deck-group-label').textContent = `${group.name} · ${cards.length} cards`;
+      $('deck-gallery').replaceChildren(...cards.map((card) => cardFigure(card.id, false, true)));
+    });
+    $('deck-filters').append(button);
+  }
+  $('deck-filters').querySelector<HTMLButtonElement>('button')!.click();
 });
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
@@ -676,6 +773,7 @@ document.addEventListener('keydown', (event) => {
   )
     return;
   if (event.code !== 'Space') return;
+  if ((event.target as Element).closest?.('a')) return;
   const button = (event.target as Element).closest?.('button');
   if (button && !['enter', 'continue-reading', 'skip-entry'].includes(button.id)) return;
   if (stage === 'outside') {
@@ -701,6 +799,7 @@ reduced.addEventListener('change', () => {
 window.addEventListener('online', () => {
   if (stage !== 'outside' && stage !== 'entering') void reconnect();
 });
+window.addEventListener('pagehide', () => readingOrb.cancel());
 setStage('outside');
 try {
   if (sessionStorage.getItem('blue-veil-entered') === '1') {

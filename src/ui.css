@@ -70,6 +70,21 @@
   width: 44px;
   height: 44px;
 }
+#deck-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+#deck-filters button {
+  padding: 6px 12px;
+  border: 1px solid #706383;
+}
+#deck-filters button[aria-pressed='true'] {
+  color: #f1d597;
+  background: #30223f;
+  border-color: #cfad69;
+}
 #deck-gallery {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -139,9 +154,6 @@
     width: 34px;
     height: 34px;
   }
-  #preview-badge {
-    font-size: 14px;
-  }
   #enter {
     font-size: 25px;
     top: 80%;
@@ -152,27 +164,22 @@
     left: 8%;
     width: 84%;
     max-height: 28%;
-    overflow: auto;
+    overflow: visible;
   }
   #dialogue {
     font-size: 26px;
     line-height: 1.08;
-    margin-left: 17px;
-  }
-  .speech:before {
-    font-size: 26px;
   }
   #speech-title {
-    font-size: 21px;
-    margin-left: 17px;
+    font-size: 30px;
     margin-bottom: 6px;
   }
   .speech-actions {
-    min-height: 32px;
-    gap: 20px;
+    gap: 10px;
+    margin-top: 8px;
   }
   .speech-actions button {
-    min-height: 32px;
+    min-width: 92px;
     font-size: 22px;
   }
   #question-form {
@@ -181,12 +188,12 @@
     bottom: 13%;
   }
   .question-shell {
+    min-height: 89px;
     padding: 12px;
     gap: 8px;
   }
   textarea {
     font-size: 25px;
-    min-height: 61px;
   }
   #submit-question {
     font-size: 30px;
@@ -195,13 +202,12 @@
     --table-tilt: 30deg;
   }
   .deck {
-    left: 7%;
-    width: 17%;
+    left: 3%;
+    width: 11%;
     bottom: 12%;
   }
   .spread {
-    left: 31%;
-    right: 5%;
+    width: 64%;
     bottom: 12%;
     gap: 7%;
   }
@@ -224,9 +230,6 @@
   .game-choice {
     font-size: 22px;
     padding: 7px 2px;
-  }
-  .game-choice:before {
-    margin-right: 4px;
   }
   #error-box {
     left: 5%;
@@ -272,13 +275,12 @@
     max-height: 23%;
   }
   .deck {
-    width: 13%;
-    left: 13%;
+    width: 11%;
+    left: 8%;
     bottom: 7%;
   }
   .spread {
-    left: 35%;
-    right: 13%;
+    width: 52%;
     bottom: 7%;
     max-width: 430px;
   }
@@ -300,12 +302,14 @@
     font-size: clamp(18px, 2.1cqw, 28px);
   }
   #speech-title {
-    font-size: 20px;
+    font-size: clamp(24px, 2.65cqw, 30px);
     margin-bottom: 6px;
   }
   .speech-actions button {
     font-size: 19px;
-    min-height: 25px;
+    min-width: 88px;
+    min-height: 38px;
+    padding: 6px 14px;
   }
   .game-controls {
     top: 6px;
@@ -316,9 +320,9 @@
   }
   textarea {
     font-size: 21px;
-    min-height: 44px;
   }
   .question-shell {
+    min-height: 64px;
     padding: 6px 10px;
   }
   #question-form {
@@ -341,8 +345,8 @@
     width: min(42cqw, 26cqh, 224px);
   }
   .card-focused .speech {
-    top: 50%;
-    bottom: 28%;
+    top: 48%;
+    bottom: 25%;
     max-height: none;
   }
 }

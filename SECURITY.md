@@ -15,6 +15,7 @@ All browser code and frontend build-time variables are public. An ignored enviro
 - HTTPS and secure HttpOnly session cookies; same-origin mutation checks and CSRF protection.
 - Authorization of reading ownership on every endpoint; no client authority over cards, quota, dates or budget.
 - Transactional daily quotas, idempotency, bounded paid retries and independent global generation/spend limits.
+- Shared network quotas use daily HMAC identifiers, with a server-only Secrets Manager key. The CloudFront viewer-request function overwrites the network header; only the signed CloudFront-to-Lambda route may supply it. Reject missing/invalid transport addresses or unavailable keys. Never store raw IPs or merge reading ownership across browsers. See [network limits](docs/NETWORK_LIMITS.md).
 - Private S3 assets behind CloudFront; an IAM-protected API origin restricted to the intended distribution.
 - Least-privilege workload roles, a non-root deployment identity and tightly scoped future CI federation.
 - Validated model input/output, safe text rendering, content moderation and no model access to tools or arbitrary network actions.

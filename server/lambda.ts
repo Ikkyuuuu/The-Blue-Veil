@@ -5,6 +5,8 @@ import { Game, DEFAULT_SETTINGS } from './game.js';
 import { api } from './http.js';
 import { BedrockGenerator } from './generator.js';
 import { cleanup, processReading } from './worker.js';
+import { NETWORK_HEADER } from './network-quota.js';
+import { awsNetworkSecret } from './network-secret.js';
 
 const required = (name: string) => {
   const value = process.env[name];
@@ -44,12 +46,18 @@ export async function apiHandler(event: APIGatewayProxyEventV2) {
   const body = event.isBase64Encoded
     ? Buffer.from(event.body ?? '', 'base64').toString('utf8')
     : (event.body ?? '');
-  const result = await api(game(), [required('APP_ORIGIN')])({
+  const result = await api(
+    game(),
+    [required('APP_ORIGIN')],
+    undefined,
+    awsNetworkSecret,
+  )({
     method: event.requestContext.http.method,
     path: event.rawPath,
     headers,
     body,
     secure: true,
+    clientIp: event.headers[NETWORK_HEADER],
   });
   return {
     statusCode: result.status,

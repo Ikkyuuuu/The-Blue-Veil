@@ -44,7 +44,8 @@ const names = [
   'The World',
   'Back',
 ];
-for (const name of names) {
+const backOnly = process.argv.includes('--back-only');
+for (const name of backOnly ? ['Back'] : names) {
   const dir = join(directory, name);
   const files = (await readdir(dir)).filter((x) => x.endsWith('.png'));
   if (files.length !== 1) throw new Error(`Expected exactly one PNG for ${name}.`);
@@ -55,5 +56,7 @@ for (const name of names) {
   await cp(file, join(target, `${name.toLowerCase().replaceAll(' ', '-')}.png`));
 }
 console.info(
-  'Imported 22 unchanged Major Arcana cards and the card back. Paid deck files remain ignored by Git.',
+  backOnly
+    ? 'Imported the unchanged card back. Paid artwork remains ignored by Git.'
+    : 'Imported 22 legacy Major Arcana cards and the back unchanged. The active deck uses generated faces. Paid artwork remains ignored by Git.',
 );

@@ -1,5 +1,55 @@
 import { test, expect, type Page } from '@playwright/test';
 
+for (const scene of ['exterior', 'interior'] as const) {
+  test(`reload keeps the ${scene} source hidden until its first filtered frame`, async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.locator('.exterior-scene')).toHaveClass(/pixel-ready/);
+    if (scene === 'interior') {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.getByRole('button', { name: 'Enter the tent' }).click();
+      await expect(page.locator('.interior-scene')).toHaveClass(/pixel-ready/);
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+    }
+
+    // Let the native video load, but hold the base texture needed by the shader.
+    // This reproduces the raw video/poster flash even on a fast local connection.
+    const poster = scene === 'exterior' ? 'exterior.jpg' : 'interior-unlit.png';
+    let release!: () => void;
+    const loading = new Promise<void>((resolve) => (release = resolve));
+    await page.route(`**/assets/scenes/${poster}`, async (route) => {
+      await loading;
+      await route.continue();
+    });
+    const frame = page.locator(`.${scene}-scene`);
+    const raw = frame.locator('.scene-image:not(canvas), .scene-candle, .orb-aura');
+    try {
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await expect
+        .poll(() =>
+          page.locator(`#${scene}-video`).evaluate((video: HTMLVideoElement) => video.readyState),
+        )
+        .toBeGreaterThanOrEqual(2);
+      await expect(frame).not.toHaveClass(/pixel-ready|pixel-fallback/);
+      for (const source of await raw.all()) await expect(source).toHaveCSS('visibility', 'hidden');
+      await expect(frame.locator('canvas')).toBeHidden();
+      await page.screenshot({
+        path: `.private/qa/${test.info().project.name}-${scene}-reload-loading.png`,
+      });
+    } finally {
+      release();
+    }
+    await expect(frame).toHaveClass(/pixel-ready/);
+    await expect(frame.locator('canvas')).toBeVisible();
+    await expect(frame.locator('img')).toHaveCSS('visibility', 'hidden');
+    await expect(frame.locator('video').first()).toHaveCSS('visibility', 'hidden');
+    await page.screenshot({
+      path: `.private/qa/${test.info().project.name}-${scene}-reload-ready.png`,
+    });
+  });
+}
+
 test('hidden video frames keep repainting when playback-quality counters are stale', async ({
   page,
 }) => {
@@ -126,9 +176,12 @@ test('live pixel scenes, reduced motion and recovery after graphics loss', async
     extension.loseContext();
   });
   await expect(page.locator('.interior-scene')).not.toHaveClass(/pixel-ready/);
+  await expect(page.locator('.interior-scene')).toHaveClass(/pixel-fallback/);
   await expect(page.locator('.interior-scene img')).toBeVisible();
   await page.locator('.interior-scene canvas').dispatchEvent('restore-test-context');
   await expect(page.locator('.interior-scene')).toHaveClass(/pixel-ready/);
+  await expect(page.locator('.interior-scene')).not.toHaveClass(/pixel-fallback/);
+  await expect(page.locator('.interior-scene img')).toBeHidden();
   await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
   await page.getByRole('button', { name: 'Open game menu' }).click();
   await page.getByRole('button', { name: 'The deck & credits' }).click();
@@ -159,6 +212,7 @@ test('the game remains playable when WebGL is unavailable', async ({ page }) => 
   await page.getByRole('button', { name: 'Enter the tent' }).click();
   await expect(page.locator('.interior-scene img')).toBeVisible();
   await expect(page.locator('.interior-scene')).not.toHaveClass(/pixel-ready/);
+  await expect(page.locator('.interior-scene')).toHaveClass(/pixel-fallback/);
   await page
     .getByRole('textbox', { name: 'Your question' })
     .fill('What can I learn from this project?');

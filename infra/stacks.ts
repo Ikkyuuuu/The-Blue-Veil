@@ -22,8 +22,10 @@ import {
   aws_bedrock as bedrock,
   aws_pricingplanmanager as plans,
   aws_cloudwatch as cloudwatch,
+  aws_secretsmanager as secretsmanager,
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
+import { VIEWER_NETWORK_CODE } from './viewer-network.js';
 
 export class BackendStack extends Stack {
   constructor(scope: Construct, id: string, region: string, account?: string) {
@@ -117,7 +119,16 @@ export class BackendStack extends Stack {
           removalPolicy: RemovalPolicy.DESTROY,
         }),
       });
-    const api = create('Api', 'apiHandler', 15, 256, { APP_ORIGIN: origin.valueAsString });
+    const networkSecret = new secretsmanager.Secret(this, 'NetworkQuotaSecret', {
+      description: 'Server-only HMAC key for daily network abuse allowances',
+      generateSecretString: { passwordLength: 64, excludePunctuation: true },
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+    const api = create('Api', 'apiHandler', 15, 256, {
+      APP_ORIGIN: origin.valueAsString,
+      NETWORK_SECRET_ARN: networkSecret.secretArn,
+    });
+    networkSecret.grantRead(api);
     const worker = create('Worker', 'workerHandler', 45, 256, {
       BEDROCK_REGION: 'us-east-1',
       BEDROCK_INFERENCE_PROFILE_ID: 'us.amazon.nova-micro-v1:0',
@@ -146,6 +157,7 @@ export class BackendStack extends Stack {
     access(api, [
       'session#*',
       'quota#*',
+      'network-quota#*',
       'reading#*',
       'content#*',
       'accepted-day#*',
@@ -155,6 +167,7 @@ export class BackendStack extends Stack {
     access(worker, [
       'session#*',
       'quota#*',
+      'network-quota#*',
       'reading#*',
       'content#*',
       'attempt-day#*',
@@ -170,7 +183,7 @@ export class BackendStack extends Stack {
         },
       }),
     );
-    access(reconciler, ['reading#*', 'content#*', 'outbox#*']);
+    access(reconciler, ['reading#*', 'content#*', 'outbox#*', 'network-quota#*']);
     reconciler.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['dynamodb:Query'],
@@ -336,6 +349,15 @@ export class EdgeStack extends Stack {
     const functions = [
       { eventType: 'viewer-response', functionArn: responseHeaders.attrFunctionArn },
     ];
+    const viewerNetwork = new cf.CfnFunction(this, 'ViewerNetwork', {
+      name: `${id}-network`,
+      autoPublish: true,
+      functionConfig: {
+        comment: 'Trusted viewer address for API abuse limits',
+        runtime: 'cloudfront-js-2.0',
+      },
+      functionCode: VIEWER_NETWORK_CODE,
+    });
     const disabled = '413f160a-7fce-4cc4-9e90-24b55beafc7d',
       optimized = '658327ea-f89d-4fab-a63d-7e88639e58f6';
     const distribution = new cf.CfnDistribution(this, 'Distribution', {
@@ -387,6 +409,9 @@ export class EdgeStack extends Stack {
             cachedMethods: ['GET', 'HEAD'],
             cachePolicyId: disabled,
             originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac',
+            functionAssociations: [
+              { eventType: 'viewer-request', functionArn: viewerNetwork.attrFunctionArn },
+            ],
             compress: true,
           },
         ],

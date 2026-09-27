@@ -9,14 +9,19 @@ import { DEFAULT_SETTINGS, Game } from './game.js';
 import { api, securityHeaders } from './http.js';
 import { BedrockGenerator, LocalGenerator } from './generator.js';
 import { cleanup, processReading } from './worker.js';
+import { localNetworkSecret } from './network-secret.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.PORT ?? 5173),
   origin = `http://localhost:${port}`;
 const mode = process.env.READING_MODE === 'bedrock' ? 'bedrock' : 'local';
-const store = new MemoryStore(
-  resolve(root, process.env.LOCAL_STATE_FILE ?? '.private/dev-state.json'),
-);
+const stateFile = resolve(root, process.env.LOCAL_STATE_FILE ?? '.private/dev-state.json');
+const store = new MemoryStore(stateFile);
+// Loopback-only UI tests may disable shared-network quotas. AWS has no opt-out.
+const networkSecret =
+  process.env.LOCAL_NETWORK_QUOTA === 'off' && mode === 'local'
+    ? undefined
+    : await localNetworkSecret(`${stateFile}.network-key`);
 await store.load();
 const game = new Game(store, { ...DEFAULT_SETTINGS, mode });
 const generator =
@@ -41,7 +46,12 @@ const enqueue = (id: string) => {
     mode === 'local' ? 1800 : 0,
   );
 };
-const handle = api(game, [origin, `http://127.0.0.1:${port}`], enqueue);
+const handle = api(
+  game,
+  [origin, `http://127.0.0.1:${port}`],
+  enqueue,
+  networkSecret ? async () => networkSecret : undefined,
+);
 const production = process.argv.includes('--production');
 const vite = production
   ? null
@@ -55,9 +65,12 @@ const types: Record<string, string> = {
   '.js': 'text/javascript',
   '.css': 'text/css',
   '.png': 'image/png',
+  '.webp': 'image/webp',
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.mp4': 'video/mp4',
+  '.mp3': 'audio/mpeg',
+  '.txt': 'text/plain; charset=utf-8',
   '.json': 'application/json',
 };
 const server = createServer(async (req, res) => {
@@ -92,6 +105,7 @@ const server = createServer(async (req, res) => {
       headers,
       body: Buffer.concat(chunks).toString('utf8'),
       secure: false,
+      clientIp: req.socket.remoteAddress,
     });
     res.writeHead(result.status, {
       ...result.headers,

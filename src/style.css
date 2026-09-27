@@ -91,16 +91,17 @@ a {
 .pixel-scene {
   image-rendering: pixelated;
 }
-.pixel-scene {
+/* Keep source artwork hidden while the first filtered frame is loading. */
+.scene-frame > .scene-image,
+.scene-frame > .scene-candle,
+.scene-frame > .orb-aura {
   visibility: hidden;
 }
-.pixel-ready > .scene-image:not(canvas) {
-  visibility: hidden;
-}
-.pixel-ready > .scene-candle {
-  visibility: hidden;
-}
-.pixel-ready > .pixel-scene {
+.pixel-ready > .pixel-scene,
+.pixel-ready > .orb-aura,
+.pixel-fallback > .scene-image:not(canvas),
+.pixel-fallback > .scene-candle,
+.pixel-fallback > .orb-aura {
   visibility: visible;
 }
 .scene-frame {
@@ -185,11 +186,9 @@ body[data-stage='pending'] .reading-video {
 #sound[aria-pressed='false'] {
   opacity: 0.35;
 }
-#preview-badge {
-  font-size: 16px;
-  color: #b3aac4;
-  opacity: 0.65;
-  letter-spacing: 1px;
+#github-link svg {
+  fill: currentColor;
+  stroke: none;
 }
 #outside {
   position: absolute;
@@ -237,6 +236,8 @@ body[data-stage='pending'] .reading-video {
 }
 .speech {
   position: absolute;
+  display: flex;
+  flex-direction: column;
   z-index: 3;
   top: 21%;
   left: 65%;
@@ -247,51 +248,62 @@ body[data-stage='pending'] .reading-video {
     0 0 14px #07040e;
   cursor: pointer;
   max-height: 45%;
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #58466a transparent;
-}
-.speech:before {
-  content: '*';
-  position: absolute;
-  left: 0;
-  top: 0;
-  font-size: clamp(22px, 2.1cqw, 34px);
-  color: #d2bfe4;
+  overflow: visible;
 }
 #dialogue {
   font-size: clamp(22px, 2.1cqw, 34px);
   line-height: 1.15;
-  margin: 0 0 0 22px;
+  margin: 0;
   min-height: 1.2em;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #58466a transparent;
 }
 #speech-title {
-  font-size: clamp(18px, 1.75cqw, 27px);
+  flex-shrink: 0;
+  font-size: clamp(28px, 2.65cqw, 42px);
   color: var(--gold);
-  margin: 0 0 12px 22px;
+  margin: 0 0 12px;
   line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 .speech-actions {
+  flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
-  gap: 24px;
-  min-height: 38px;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 4px 4px 6px;
 }
 .speech-actions button {
   font-size: 24px;
-  min-width: 44px;
-  min-height: 38px;
-  padding: 0 8px;
+  line-height: 1;
+  min-width: 104px;
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 2px solid #a38bb9;
+  border-radius: 0;
+  background: #100a1ee8;
+  box-shadow: 3px 3px 0 #030107;
   color: #e4d2ef;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.speech-actions button:hover,
+.speech-actions button:focus-visible {
+  background: #30203f;
+  border-color: #e4d2ef;
+  color: #fff5de;
+}
+.speech-actions button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 #030107;
 }
 #continue-reading {
-  animation: prompt 1.6s steps(2, end) infinite;
-}
-.typing #continue-reading {
-  animation: none;
-  opacity: 0.4;
+  border-color: var(--gold);
+  color: #f0dfb6;
 }
 #question-form {
   position: absolute;
@@ -303,6 +315,7 @@ body[data-stage='pending'] .reading-video {
 .question-shell {
   display: flex;
   align-items: center;
+  min-height: 88px;
   gap: 14px;
   padding: 11px 16px;
   background: #090612db;
@@ -315,8 +328,9 @@ body[data-stage='pending'] .reading-video {
 }
 textarea {
   resize: none;
+  text-align: center;
   width: 100%;
-  min-height: 55px;
+  min-height: 1.1em;
   max-height: 130px;
   border: 0;
   background: none;
@@ -412,8 +426,10 @@ textarea:focus-visible {
 }
 .spread {
   position: absolute;
-  left: 39%;
-  right: 23%;
+  left: 0;
+  right: 0;
+  width: 38%;
+  margin-inline: auto;
   bottom: 12.5%;
   display: flex;
   justify-content: space-between;
@@ -441,13 +457,20 @@ textarea:focus-visible {
   margin: 0;
   width: 100%;
 }
-.tarot-card img {
+.card-art {
+  position: relative;
   display: block;
   width: 100%;
-  image-rendering: pixelated;
+  aspect-ratio: 128 / 180;
   filter: drop-shadow(3px 5px 1px #07030e99);
 }
-.tarot-card img.reversed {
+.card-art img {
+  position: absolute;
+  display: block;
+  max-width: none;
+  image-rendering: pixelated;
+}
+.card-art.reversed {
   transform: rotate(180deg);
 }
 .card-slot figcaption {
@@ -501,25 +524,51 @@ textarea:focus-visible {
   left: 50%;
   top: 50%;
   width: min(19cqw, 37cqh, 272px);
-  aspect-ratio: 128 / 180;
   transform: translate(-50%, -50%);
 }
 .focus-art {
   position: relative;
 }
 .focus-reveal {
+  position: relative;
+  isolation: isolate;
   animation: card-focus-arrive 0.75s cubic-bezier(0.2, 0.7, 0.25, 1) both;
 }
-.focus-art img {
-  display: block;
-  width: 100%;
-  image-rendering: pixelated;
-  /* Follow the PNG's transparent ornamented edges, not its rectangular box. */
+.focus-reveal::before,
+.focus-reveal::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+.focus-reveal::before {
+  /* Fill behind curved frames and cutouts, underneath the untouched artwork. */
+  inset: 2% 1%;
+  border-radius: 12% / 8%;
+  background: linear-gradient(
+    155deg,
+    rgb(var(--aura-primary) / 0.6),
+    rgb(var(--aura-primary) / 0.42) 50%,
+    rgb(var(--aura-secondary) / 0.5)
+  );
+  filter: blur(10px);
+}
+.focus-reveal::after {
+  /* A filled backlight extends beyond the frame; its edge fades to nothing. */
+  inset: -10% -22%;
+  background: radial-gradient(
+    ellipse closest-side,
+    rgb(var(--aura-primary) / 0.9) 42%,
+    rgb(var(--aura-primary) / 0.75) 64%,
+    rgb(var(--aura-secondary) / 0.4) 82%,
+    rgb(var(--aura-secondary) / 0) 100%
+  );
+}
+.focus-art .card-art {
+  z-index: 1;
+  /* Shadow the clipped frame, so the old opaque matte cannot form an aura box. */
   filter: drop-shadow(0 0 7px rgb(var(--aura-primary) / 0.85))
     drop-shadow(0 0 15px rgb(var(--aura-secondary) / 0.28));
-}
-.focus-art img.reversed {
-  transform: rotate(180deg);
 }
 #card-focus.paused *,
 #card-focus:not(.visible) * {
@@ -556,7 +605,7 @@ textarea:focus-visible {
 .deal-card > .tarot-card {
   transform: translateZ(0.5px);
 }
-.deal-card .tarot-card img {
+.deal-card .card-art {
   filter: none;
 }
 .deal-back {
@@ -597,22 +646,27 @@ textarea:focus-visible {
 #result-choices {
   position: absolute;
   bottom: 2%;
-  left: 28%;
-  right: 20%;
+  left: 3%;
+  right: 3%;
   display: flex;
   justify-content: center;
   gap: 36px;
 }
 .game-choice {
+  position: relative;
   font-size: clamp(20px, 1.8cqw, 28px);
   color: #e2d6c6;
   min-height: 44px;
   padding: 7px 10px;
+  text-align: center;
   text-shadow: 2px 2px #080310;
 }
 .game-choice:before {
   content: '>';
-  margin-right: 10px;
+  position: absolute;
+  left: -0.5em;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--gold);
   opacity: 0;
 }

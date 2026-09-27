@@ -2,7 +2,13 @@ import { spawnSync } from 'node:child_process';
 import { readFile, mkdir, stat } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 const run = (args, input) =>
-  spawnSync('git', args, { cwd: process.cwd(), encoding: 'utf8', input, windowsHide: true });
+  spawnSync('git', args, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    input,
+    windowsHide: true,
+    maxBuffer: 32 * 1024 * 1024,
+  });
 const repo = run(['rev-parse', '--show-toplevel']);
 let prefix = [];
 if (repo.status !== 0) {
@@ -17,6 +23,45 @@ const result = run([...prefix, 'ls-files', '--cached', '--others', '--exclude-st
 if (result.status !== 0) throw new Error('Cannot enumerate publishable files.');
 const files = [...new Set(result.stdout.split('\0').filter(Boolean))];
 const issues = [];
+const privateCardMaterial = (file) =>
+  /^(?:artifacts|asset-sources|captures|public\/assets\/deck)\//i.test(file) ||
+  /^docs\/(?:[^/]*-arcana-prompts\.[^/]+|(?:card|deck)-prompts\/.*)$/i.test(file);
+// Deleting a file in a later commit or ignoring it does not remove its history.
+if (repo.status === 0) {
+  // Enumerate file changes, not one path per blob: Git can reuse a public blob
+  // at a private path, and rev-list --objects would report only one alias.
+  const history = run([
+    'log',
+    '--all',
+    '--format=',
+    '--name-only',
+    '-z',
+    '--no-renames',
+    '--root',
+    '-m',
+  ]);
+  if (history.status !== 0) throw new Error('Cannot inspect Git history for private card assets.');
+  const historicalPaths = new Set(history.stdout.split('\0').filter(Boolean));
+  // Local tools may keep direct tree checkpoints outside commit history.
+  const refs = run([
+    'for-each-ref',
+    '--format=%(objecttype) %(objectname) %(*objecttype) %(*objectname)',
+  ]);
+  if (refs.status !== 0) throw new Error('Cannot inspect Git checkpoint references.');
+  const trees = new Set();
+  for (const line of refs.stdout.trim().split('\n')) {
+    const [type, oid, targetType, targetOid] = line.split(' ');
+    if (type === 'tree') trees.add(oid);
+    else if (targetType === 'tree') trees.add(targetOid);
+  }
+  for (const oid of trees) {
+    const tree = run(['ls-tree', '-r', '--name-only', '-z', oid]);
+    if (tree.status !== 0) throw new Error('Cannot inspect a Git checkpoint tree.');
+    for (const path of tree.stdout.split('\0').filter(Boolean)) historicalPaths.add(path);
+  }
+  for (const file of historicalPaths)
+    if (privateCardMaterial(file)) issues.push(`${file}: private card material in Git history`);
+}
 const patterns = [
   ['AWS access key', /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/],
   ['private key', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/],
@@ -38,9 +83,9 @@ for (const file of files) {
   if (
     ['/AWS_DISCOVERY.md', '/SECURITY_PLAN.md'].includes(`/${file}`) ||
     file.startsWith('.private/') ||
-    /^public\/assets\/deck\/.*\.png$/i.test(file)
+    privateCardMaterial(file)
   ) {
-    issues.push(`${file}: private or paid source asset`);
+    issues.push(`${file}: private record, card artwork or generation material`);
     continue;
   }
   const info = await stat(file);
@@ -55,5 +100,5 @@ if (issues.length) {
   process.exitCode = 1;
 } else
   console.info(
-    `Checked ${files.length} publishable files: no private paths, paid deck originals, or targeted secret patterns found. This check complements, not replaces, a full history secret scan.`,
+    `Checked ${files.length} publishable files and available Git history: no private card material, private paths, or targeted secret patterns found. This check complements, not replaces, a full history secret scan.`,
   );

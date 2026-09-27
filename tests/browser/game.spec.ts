@@ -51,7 +51,7 @@ test('scene, table draw, resume, paged reading and deletion', async ({ page }) =
   const spoken: string[] = [];
   for (let step = 0; step < 30 && !(await page.locator('#result-choices').isVisible()); step++) {
     spoken.push(await page.locator('#dialogue').innerText());
-    await page.getByRole('button', { name: 'Continue reading', exact: true }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
   }
   const normalize = (text: string) => text.replace(/\s+/g, ' ').trim();
   expect(normalize(spoken.join(' '))).toBe(

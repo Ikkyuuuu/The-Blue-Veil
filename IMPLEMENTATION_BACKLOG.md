@@ -2,7 +2,7 @@
 
 The criteria below remain the release checklist. Current implementation status:
 
-- Implemented locally: cinematic scenes, supplied 22-card deck, question/draw/result flow, separate candle flames, deletion/resume, reduced-motion controls, privacy/attribution copy and generated ambient sound.
+- Implemented locally: cinematic scenes, selected generated 78-card deck, question/draw/result flow, separate candle flames, deletion/resume, reduced-motion controls, privacy/attribution copy and generated ambient sound.
 - Implemented in source: authoritative sessions/quota/draws, expiring content, idempotency, cancellation/refunds, queue worker, Bedrock/guardrail adapter and cost reservations.
 - Verified: engine/HTTP and infrastructure unit tests; build and public-file checks. Desktop/mobile browser checks are recorded in docs/VALIDATION.md.
 - AWS templates synthesize but are not deployed. The Thailand Function URL regional incompatibility requires a region decision or API redesign before deployment.
@@ -25,7 +25,7 @@ Exit: a priced, secure, working infrastructure path and a clear model/guardrail 
 
 - Implement the exterior, entrance, hooded-reader, draw and result states with fixture API responses.
 - Prepare the unlit-candle interior and independent flames/glows; use one reusable orb pulse and extinguish effect.
-- Integrate the supplied 22 licensed Major Arcana, back and deck; defer Minor Arcana until supplied. Confirm every card can be drawn in tests, with no repeats in a spread.
+- Integrated all 78 selected generated faces, upright/reversed meanings and auras; retain the licensed card back. Validate complete suit membership, interpretations for every card, and distinct server-authorized draws.
 - Make desktop/phone controls accessible. Check keyboard-only use, Space in input, reduced motion, mute, skip, tab focus, readable result panels and screen-reader output.
 - Optimize video/poster loading; measure real transferred bytes. Verify all loops, interior clip transitions and the once-only entrance on Chrome, Edge, Firefox and Safari/mobile Safari.
 
@@ -62,7 +62,7 @@ Exit: an end-to-end reading succeeds and deliberately induced failure paths resp
 - Verify public S3/origin access denied, CSP effective, headers on error responses, no API cache leakage, and no sensitive content in logs/traces/queues.
 - Scan dependencies, committed artifacts and build output for secrets. Pin dependencies and CI actions; restrict future OIDC deploy trust to the selected repository/environment.
 - When the public repository exists, configure available secret scanning/push protection and private vulnerability reporting. Verify `.gitignore` exclusions and placeholder examples. Do not assume ignore rules remove tracked content or history.
-- Add privacy/AI/attribution pages and owner contact. State browser-limit bypass and content-expiry behavior honestly where relevant.
+- Privacy/AI/attribution pages disclose the shared daily network allowance and content expiry; add owner contact. Anonymous network protection is implemented locally and in infrastructure templates. Verify trusted viewer headers, spoof resistance, secret access, quota contention and cleanup in AWS before launch; see docs/NETWORK_LIMITS.md.
 - Configure project cost alerts and a small set of useful failure alarms; verify the delivery destination with the owner during deployment.
 - Exercise kill switch, queue pause, frontend rollback and Lambda rollback. Document accepted state-recovery limits.
 
@@ -70,7 +70,7 @@ Exit: all security gates pass and a measured monthly forecast fits the target wi
 
 ## P5 — limited launch and measured expansion
 
-- Launch with proposed 100 daily / 2,000 monthly global reading caps, the independent $2 AI/moderation allowance, and three questions per browser.
+- Launch with proposed 100 daily / 2,000 monthly global reading caps, the independent $2 AI/moderation allowance, and three questions per browser plus a shared three-question daily network allowance.
 - Review actual token units, moderation units, read/write costs, media delivery, logs, error rate and completion time during beta.
 - Adjust caps only from measured evidence. If guardrails, model quality or volume cannot fit the budget, reduce capacity or revise the budget; do not remove core protections silently.
 

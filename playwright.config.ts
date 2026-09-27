@@ -18,6 +18,7 @@ export default defineConfig({
     env: {
       PORT: '5174',
       READING_MODE: 'local',
+      LOCAL_NETWORK_QUOTA: 'off',
       LOCAL_STATE_FILE: `.private/browser-tests/${randomUUID()}.json`,
     },
     timeout: 30000,

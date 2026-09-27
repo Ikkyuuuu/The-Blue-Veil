@@ -51,6 +51,13 @@ export async function processReading(game: Game, generator: Generator, id: strin
 }
 
 export async function cleanup(game: Game) {
+  // TTL is an asynchronous fallback; scheduled cleanup also handles local state.
+  for (const key of await game.store.due('NETWORK', game.clock(), 50)) {
+    await game.store.transact([key], (tx) => {
+      const counter = tx.get<{ expiresAt: number }>(key);
+      if (counter && counter.expiresAt <= game.clock()) tx.delete(key);
+    });
+  }
   const keys = await game.store.due('CONTENT', game.clock(), 50);
   for (const key of keys) {
     const id = key.slice('content#'.length),
@@ -70,7 +77,7 @@ export async function cleanup(game: Game) {
         if (current)
           tx.put(
             r,
-            { ...current, status: 'canceled', leaseId: undefined },
+            { ...current, status: 'canceled', leaseId: undefined, networkQuota: undefined },
             current.createdAt + 7 * 86400000,
           );
       }

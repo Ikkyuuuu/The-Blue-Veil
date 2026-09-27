@@ -9,6 +9,7 @@ import {
   type SessionView,
 } from '../shared/cards.js';
 import type { Store, Transaction } from './store.js';
+import type { NetworkQuota } from './network-quota.js';
 
 const DAY = 86400000;
 const SESSION_LIFE = 30 * DAY;
@@ -56,10 +57,12 @@ export type Reading = {
   leaseId?: string;
   message?: string;
   deckVersion: string;
+  networkQuota?: { key: string; expiresAt: number };
 };
 export type Content = { question: string; answer?: Interpretation; expiresAt: number };
 export type Job = { id: string; status: 'pending' | 'done'; createdAt: number };
 type Counter = { count: number };
+type NetworkCounter = Counter & { expiresAt: number };
 type Limit = { count: number; microDollars: number };
 export type Settings = {
   dailyLimit: number;
@@ -132,10 +135,13 @@ export class Game {
       );
     return { ...session, csrf: hash(`csrf:${token}`) };
   }
-  async sessionView(session: Session): Promise<SessionView> {
+  async sessionView(session: Session, network?: NetworkQuota): Promise<SessionView> {
     const now = this.clock();
     const current = (await this.store.get<Session>(`session#${session.id}`)) ?? session;
     const used = await this.store.get<Counter>(`quota#${session.id}#${dayKey(now)}`);
+    const networkUsed = network
+      ? await this.store.get<NetworkCounter>(network(dayKey(now)))
+      : undefined;
     const active = current.active
       ? await this.store.get<Reading>(`reading#${current.active}`)
       : undefined;
@@ -144,7 +150,14 @@ export class Game {
       : undefined;
     return {
       csrf: session.csrf,
-      remaining: Math.max(0, 3 - (used?.count ?? 0)),
+      remaining: Math.max(
+        0,
+        3 -
+          Math.max(
+            used?.count ?? 0,
+            networkUsed && networkUsed.expiresAt > now ? networkUsed.count : 0,
+          ),
+      ),
       resetsAt: nextReset(now),
       activeReading:
         active &&
@@ -164,7 +177,7 @@ export class Game {
       throw new GameError(401, 'SESSION_EXPIRED', 'Please enter the tent again.');
     return current;
   }
-  async submit(session: Session, body: unknown): Promise<ReadingView> {
+  async submit(session: Session, body: unknown, network?: NetworkQuota): Promise<ReadingView> {
     const parsed = SubmitSchema.safeParse(body);
     if (!parsed.success)
       throw new GameError(400, 'INVALID_QUESTION', 'Ask a question between 3 and 500 characters.');
@@ -179,6 +192,7 @@ export class Game {
       c = `content#${id}`,
       gd = `accepted-day#${day}`,
       gm = `accepted-month#${month}`;
+    const networkKey = network?.(day);
     const pool = [...CARDS];
     const cards: DrawnCard[] = Array.from({ length: 3 }, () => ({
       id: pool.splice(randomInt(pool.length), 1)[0].id,
@@ -186,72 +200,97 @@ export class Game {
     }));
     const oldActive = (await this.store.get<Session>(s))?.active;
     const oldKey = oldActive ? `reading#${oldActive}` : undefined;
-    await this.store.transact([s, r, q, c, gd, gm, ...(oldKey ? [oldKey] : [])], (tx) => {
-      const current = this.liveSession(tx, session);
-      const existing = tx.get<Reading>(r);
-      if (existing) {
-        if (existing.questionHash !== hash(question))
+    await this.store.transact(
+      [s, r, q, c, gd, gm, ...(oldKey ? [oldKey] : []), ...(networkKey ? [networkKey] : [])],
+      (tx) => {
+        const current = this.liveSession(tx, session);
+        const existing = tx.get<Reading>(r);
+        if (existing) {
+          if (existing.questionHash !== hash(question))
+            throw new GameError(
+              409,
+              'IDEMPOTENCY_CONFLICT',
+              'This request already belongs to another question.',
+            );
+          if (existing.expiresAt <= now || existing.status === 'canceled')
+            throw new GameError(410, 'READING_EXPIRED', 'That reading has left the tent.');
+          return;
+        }
+        if (current.active && current.active !== oldActive)
           throw new GameError(
             409,
-            'IDEMPOTENCY_CONFLICT',
-            'This request already belongs to another question.',
+            'ACTIVE_READING',
+            'Finish or release your current reading first.',
           );
-        if (existing.expiresAt <= now || existing.status === 'canceled')
-          throw new GameError(410, 'READING_EXPIRED', 'That reading has left the tent.');
-        return;
-      }
-      if (current.active && current.active !== oldActive)
-        throw new GameError(409, 'ACTIVE_READING', 'Finish or release your current reading first.');
-      const active = oldKey ? tx.get<Reading>(oldKey) : undefined;
-      if (
-        active &&
-        active.expiresAt > now &&
-        !['complete', 'failed', 'canceled'].includes(active.status)
-      )
-        throw new GameError(409, 'ACTIVE_READING', 'Finish or release your current reading first.');
-      const used = tx.get<Counter>(q)?.count ?? 0;
-      if (used >= 3)
-        throw new GameError(
-          429,
-          'DAILY_LIMIT',
-          'You ask too much. Come back tomorrow.',
-          Math.ceil((nextReset(now) - now) / 1000),
-        );
-      const globalDay = tx.get<Counter>(gd)?.count ?? 0,
-        globalMonth = tx.get<Counter>(gm)?.count ?? 0;
-      if (
-        !this.settings.generationEnabled ||
-        globalDay >= this.settings.dailyLimit ||
-        globalMonth >= this.settings.monthlyLimit
-      )
-        throw new GameError(
-          503,
-          'CAPACITY',
-          'The veil is quiet for now. Please return another time.',
-        );
-      const reading: Reading = {
-        id,
-        owner: session.id,
-        questionHash: hash(question),
-        day,
-        cards,
-        revealed: 0,
-        actions: [],
-        status: 'drawing',
-        createdAt: now,
-        expiresAt: now + DAY,
-        refunded: false,
-        attempts: 0,
-        leaseUntil: 0,
-        deckVersion: DECK_VERSION,
-      };
-      tx.put(s, { ...current, active: id, latest: id }, current.expiresAt);
-      tx.put(q, { count: used + 1 }, now + RECORD_LIFE);
-      tx.put(gd, { count: globalDay + 1 }, now + RECORD_LIFE);
-      tx.put(gm, { count: globalMonth + 1 }, now + 62 * DAY);
-      tx.put(r, reading, now + RECORD_LIFE);
-      tx.put(c, { question, expiresAt: now + DAY }, now + DAY, 'CONTENT', now + DAY);
-    });
+        const active = oldKey ? tx.get<Reading>(oldKey) : undefined;
+        if (
+          active &&
+          active.expiresAt > now &&
+          !['complete', 'failed', 'canceled'].includes(active.status)
+        )
+          throw new GameError(
+            409,
+            'ACTIVE_READING',
+            'Finish or release your current reading first.',
+          );
+        const used = tx.get<Counter>(q)?.count ?? 0;
+        const networkCounter = networkKey ? tx.get<NetworkCounter>(networkKey) : undefined;
+        const networkUsed =
+          networkCounter && networkCounter.expiresAt > now ? networkCounter.count : 0;
+        if (used >= 3 || networkUsed >= 3)
+          throw new GameError(
+            429,
+            'DAILY_LIMIT',
+            'You ask too much. Come back tomorrow.',
+            Math.ceil((nextReset(now) - now) / 1000),
+          );
+        const globalDay = tx.get<Counter>(gd)?.count ?? 0,
+          globalMonth = tx.get<Counter>(gm)?.count ?? 0;
+        if (
+          !this.settings.generationEnabled ||
+          globalDay >= this.settings.dailyLimit ||
+          globalMonth >= this.settings.monthlyLimit
+        )
+          throw new GameError(
+            503,
+            'CAPACITY',
+            'The veil is quiet for now. Please return another time.',
+          );
+        const reading: Reading = {
+          id,
+          owner: session.id,
+          questionHash: hash(question),
+          day,
+          cards,
+          revealed: 0,
+          actions: [],
+          status: 'drawing',
+          createdAt: now,
+          expiresAt: now + DAY,
+          refunded: false,
+          attempts: 0,
+          leaseUntil: 0,
+          deckVersion: DECK_VERSION,
+          ...(networkKey
+            ? { networkQuota: { key: networkKey, expiresAt: nextReset(now) + DAY } }
+            : {}),
+        };
+        tx.put(s, { ...current, active: id, latest: id }, current.expiresAt);
+        tx.put(q, { count: used + 1 }, now + RECORD_LIFE);
+        if (reading.networkQuota)
+          tx.put(
+            reading.networkQuota.key,
+            { count: networkUsed + 1, expiresAt: reading.networkQuota.expiresAt },
+            reading.networkQuota.expiresAt,
+            'NETWORK',
+            reading.networkQuota.expiresAt,
+          );
+        tx.put(gd, { count: globalDay + 1 }, now + RECORD_LIFE);
+        tx.put(gm, { count: globalMonth + 1 }, now + 62 * DAY);
+        tx.put(r, reading, now + RECORD_LIFE);
+        tx.put(c, { question, expiresAt: now + DAY }, now + DAY, 'CONTENT', now + DAY);
+      },
+    );
     return this.read(session, id);
   }
   async read(session: Session, id: string): Promise<ReadingView> {
@@ -333,7 +372,7 @@ export class Game {
         throw new GameError(404, 'NOT_FOUND', 'That reading cannot be found.');
       tx.put(
         r,
-        { ...reading, status: 'canceled', leaseId: undefined },
+        { ...reading, status: 'canceled', leaseId: undefined, networkQuota: undefined },
         reading.createdAt + RECORD_LIFE,
       );
       tx.delete(c);
@@ -410,7 +449,8 @@ export class Game {
       s = `session#${reading.owner}`,
       q = `quota#${reading.owner}#${reading.day}`,
       o = `outbox#${reading.id}`;
-    await this.store.transact([r, c, s, q, o], (tx) => {
+    const network = reading.networkQuota;
+    await this.store.transact([r, c, s, q, o, ...(network ? [network.key] : [])], (tx) => {
       const current = tx.get<Reading>(r),
         content = tx.get<Content>(c),
         session = tx.get<Session>(s);
@@ -427,7 +467,20 @@ export class Game {
         const count = tx.get<Counter>(q)?.count ?? 0;
         tx.put(q, { count: Math.max(0, count - 1) }, current.createdAt + RECORD_LIFE);
         current.refunded = true;
+        // Refund the original network, without recreating expired counters.
+        if (network && current.networkQuota?.key === network.key) {
+          const counter = tx.get<NetworkCounter>(network.key);
+          if (counter && counter.expiresAt > this.clock())
+            tx.put(
+              network.key,
+              { ...counter, count: Math.max(0, counter.count - 1) },
+              counter.expiresAt,
+              'NETWORK',
+              counter.expiresAt,
+            );
+        }
       }
+      delete current.networkQuota;
       current.status = complete ? 'complete' : 'failed';
       current.message = complete
         ? undefined

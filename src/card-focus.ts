@@ -1,9 +1,12 @@
 import { CARD_MAP, type DrawnCard } from '../shared/cards';
+import { MINOR_AURAS } from './minor-auras';
+import { createCardArt } from './card-art';
 
 type Aura = { tone: string; primary: string; secondary: string };
 
-// RGB channels for original light effects; the purchased card images stay unchanged.
+// RGB channels for light effects; source card artwork stays unchanged.
 export const CARD_AURAS: Record<string, Aura> = {
+  ...MINOR_AURAS,
   'the-fool': { tone: 'possibility', primary: '151 231 187', secondary: '245 221 143' },
   'the-magician': { tone: 'intention', primary: '190 118 246', secondary: '245 187 91' },
   'the-high-priestess': { tone: 'intuition', primary: '115 129 238', secondary: '195 215 250' },
@@ -28,7 +31,7 @@ export const CARD_AURAS: Record<string, Aura> = {
   'the-world': { tone: 'wholeness', primary: '103 207 176', secondary: '228 201 125' },
 };
 
-export function createCardFocus(element: HTMLElement) {
+export function createCardFocus(element: HTMLElement, onReveal?: () => void) {
   element.innerHTML =
     '<div class="focus-veil"></div><div class="focus-center"><div class="focus-art"></div></div>';
   const art = element.querySelector<HTMLElement>('.focus-art')!;
@@ -50,15 +53,13 @@ export function createCardFocus(element: HTMLElement) {
       element.dataset.tone = aura.tone;
       element.style.setProperty('--aura-primary', aura.primary);
       element.style.setProperty('--aura-secondary', aura.secondary);
-      const image = document.createElement('img');
-      image.src = card.image;
-      image.alt = ''; // The dialogue already announces the name and orientation.
-      image.draggable = false;
-      image.classList.toggle('reversed', drawn.reversed);
+      // The dialogue already announces the name and orientation.
+      const image = createCardArt(card, drawn.reversed, '');
       const reveal = document.createElement('div');
       reveal.className = 'focus-reveal';
       reveal.append(image);
       art.replaceChildren(reveal);
+      onReveal?.();
     },
     update(paused: boolean) {
       element.classList.toggle('paused', paused);

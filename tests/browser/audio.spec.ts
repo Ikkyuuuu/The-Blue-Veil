@@ -36,7 +36,10 @@ test.beforeEach(async ({ page }) => {
       return node;
     };
     // Scene playback is tested separately; leave only dialogue animated here.
-    HTMLMediaElement.prototype.play = async function () {};
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = async function () {
+      if (this.id === 'reading-video') return play.call(this);
+    };
   });
 });
 
@@ -88,7 +91,7 @@ test('sound starts on entry and reader blips respect mute, pause, skip and reduc
   await page.getByRole('button', { name: 'Turn game sound on' }).click();
   await page.getByRole('button', { name: 'Draw card 2 of 3' }).click();
   await page.getByRole('button', { name: 'Draw card 3 of 3' }).click();
-  await expect(page.locator('body')).toHaveAttribute('data-stage', 'result');
+  await expect(page.locator('body')).toHaveAttribute('data-stage', 'result', { timeout: 20000 });
   await expect(page.locator('#speech')).toHaveClass(/typing/);
   await expect.poll(() => voiceCount(page)).toBeGreaterThan(mutedCount);
   await page.locator('#dialogue').click();
@@ -97,7 +100,7 @@ test('sound starts on entry and reader blips respect mute, pause, skip and reduc
 
   const beforeReduced = await voiceCount(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.getByRole('button', { name: 'Continue reading', exact: true }).click();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page.locator('#speech')).not.toHaveClass(/typing/);
   await expectQuiet(page);
   expect(await voiceCount(page)).toBe(beforeReduced);
