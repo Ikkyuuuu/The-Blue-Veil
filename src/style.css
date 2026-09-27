@@ -147,6 +147,7 @@ body:not([data-stage='outside']):not([data-stage='entering']) .interior-scene {
 }
 body[data-stage='entering'] .entrance-scene {
   opacity: 1;
+  transition-duration: 0.25s;
 }
 body[data-stage='pending'] .reading-video {
   opacity: 1;

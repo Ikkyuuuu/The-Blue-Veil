@@ -208,6 +208,7 @@ export function createPixelScenes() {
     entrance: get<HTMLVideoElement>('#entrance-video'),
   };
   let stage = 'outside',
+    entranceBlending = false,
     paused = false,
     reduced = false,
     frame = 0,
@@ -232,6 +233,10 @@ export function createPixelScenes() {
           : scenes.interior;
     const video = activeVideo();
     scene.draw(reduced ? undefined : video, presentedFrames.get(video));
+    // Only the brief entrance overlap needs a second moving scene. Use its
+    // current timestamp because frame callbacks now belong to the walking clip.
+    if (stage === 'entering' && entranceBlending)
+      scenes.exterior.draw(reduced ? undefined : videos.exterior);
   };
   const tick = (now: number) => {
     frame = 0;
@@ -262,11 +267,17 @@ export function createPixelScenes() {
     cancelAnimationFrame(candleFrame);
     frame = candleFrame = 0;
   };
-  const update = (nextStage: string, nextPaused: boolean, nextReduced: boolean) => {
+  const update = (
+    nextStage: string,
+    nextPaused: boolean,
+    nextReduced: boolean,
+    blending = false,
+  ) => {
     stop();
     stage = nextStage;
     paused = nextPaused;
     reduced = nextReduced;
+    entranceBlending = blending;
     draw();
     schedule();
   };
@@ -300,5 +311,8 @@ export function createPixelScenes() {
   for (const candle of document.querySelectorAll('.scene-candle'))
     candleChanges.observe(candle, { attributes: true, attributeFilter: ['class'] });
   window.addEventListener('pagehide', stop);
-  return { update };
+  return {
+    update,
+    prepareEntrance: () => scenes.entrance.draw(videos.entrance),
+  };
 }

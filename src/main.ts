@@ -6,7 +6,7 @@ import { Sound } from './audio';
 import { createPixelScenes } from './pixel-scenes';
 import { createCardMotion } from './card-motion';
 import { createCardFocus } from './card-focus';
-import { prepareEntrance } from './entrance';
+import { prepareEntrance, waitForCurtainMatch } from './entrance';
 
 const speaker =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h5l5-5v16l-5-5H3zM17 8v8m4-11v14"/></svg>';
@@ -61,6 +61,7 @@ let pendingSubmit: { question: string; id: string } | undefined,
   pendingDraw: { index: number; id: string } | undefined;
 let entranceBlending = false;
 let entranceAnimations: Animation[] = [];
+let entranceRequest: AbortController | undefined;
 let pollTimer: ReturnType<typeof setTimeout> | undefined,
   resetTimer: ReturnType<typeof setTimeout> | undefined,
   typeTimer: ReturnType<typeof setInterval> | undefined,
@@ -76,15 +77,16 @@ function visibility() {
   const paused = document.hidden || menu.open || info.open;
   for (const video of videos) {
     const active =
-      (stage === 'outside' && video.id === 'exterior-video') ||
-      (stage === 'entering' && !entranceBlending && video.id === 'entrance-video') ||
+      ((stage === 'outside' || (stage === 'entering' && entranceBlending)) &&
+        video.id === 'exterior-video') ||
+      (stage === 'entering' && video.id === 'entrance-video') ||
       (['asking', 'drawing', 'result', 'limit'].includes(stage) && video.id === 'interior-video') ||
       (stage === 'pending' && video.id === 'reading-video');
     if (active && !paused && !reduced.matches) void video.play().catch(() => undefined);
     else video.pause();
   }
   sound.visibility(paused);
-  pixelScenes.update(stage, paused, reduced.matches);
+  pixelScenes.update(stage, paused, reduced.matches, entranceBlending);
   cardMotion.update(paused, reduced.matches);
   cardFocus.update(paused);
   if (stage === 'entering')
@@ -417,10 +419,17 @@ async function enter() {
       return;
     }
     const video = $<HTMLVideoElement>('entrance-video');
+    const request = new AbortController();
+    entranceRequest = request;
+    $('enter').hidden = true;
+    $('skip-entry').hidden = false;
     try {
-      // Keep the live exterior on screen until a clear walking frame is decoded.
-      await prepareEntrance(video);
+      await prepareEntrance(video, request.signal);
+      pixelScenes.prepareEntrance();
+      // Keep the curtains moving until their opening matches the walking clip.
+      await waitForCurtainMatch($<HTMLVideoElement>('exterior-video'), request.signal);
     } catch {
+      if (request.signal.aborted) return;
       await completeEntry();
       return;
     }
@@ -430,10 +439,10 @@ async function enter() {
     }
     entranceBlending = true;
     setStage('entering');
-    // Hold both images still during the dissolve; only begin walking once the
-    // entrance has fully replaced the exact exterior frame the player saw.
+    // Both clips keep moving during the short blend at the matched curtain phase.
     entranceAnimations = document.querySelector('.entrance-scene')!.getAnimations();
-    visibility();
+    if (document.hidden || menu.open || info.open)
+      entranceAnimations.forEach((animation) => animation.pause());
     await Promise.all(entranceAnimations.map((animation) => animation.finished)).catch(() => {});
     entranceAnimations = [];
     entranceBlending = false;
@@ -450,11 +459,13 @@ async function enter() {
   } catch (e) {
     showError(e);
   } finally {
+    entranceRequest = undefined;
     busy = false;
   }
 }
 async function completeEntry() {
   if (stage !== 'entering' && stage !== 'outside') return;
+  entranceRequest?.abort();
   setStage('asking');
   try {
     if (session?.activeReading) await acceptReading(await client.read(session.activeReading));
@@ -684,6 +695,7 @@ document.addEventListener('visibilitychange', () => {
 });
 reduced.addEventListener('change', () => {
   visibility();
+  if (reduced.matches && entranceRequest) void completeEntry();
   if (reduced.matches) finishTyping();
 });
 window.addEventListener('online', () => {
