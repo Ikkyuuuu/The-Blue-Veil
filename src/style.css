@@ -500,7 +500,7 @@ textarea:focus-visible {
 }
 .card-aura {
   position: absolute;
-  inset: -40% -70%;
+  inset: -12% -24%;
   background:
     radial-gradient(ellipse at 45% 40%, rgb(var(--aura-primary) / 0.48), transparent 63%),
     radial-gradient(ellipse at 60% 65%, rgb(var(--aura-secondary) / 0.34), transparent 60%);
