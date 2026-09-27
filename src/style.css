@@ -417,6 +417,7 @@ textarea:focus-visible {
   pointer-events: auto;
   transform: rotateX(var(--table-tilt));
   transform-origin: center bottom;
+  transform-style: preserve-3d;
 }
 .card-slot {
   width: 25%;
@@ -531,13 +532,61 @@ textarea:focus-visible {
 }
 .card-slot.dealing {
   z-index: 3;
+  transform-style: preserve-3d;
 }
+.deal-card {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateY(180deg);
+  pointer-events: none;
+}
+.deal-card > .tarot-card,
 .deal-back {
   position: absolute;
   inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.deal-card > .tarot-card {
+  transform: translateZ(0.5px);
+}
+.deal-card .tarot-card img {
+  filter: none;
+}
+.deal-back {
+  transform: rotateY(180deg) translateZ(0.5px);
   background: url('/assets/deck/back.png') center / 100% 100%;
   image-rendering: pixelated;
-  filter: drop-shadow(3px 5px 1px #07030e99);
+  pointer-events: none;
+}
+.deal-card:before,
+.deal-card:after {
+  content: '';
+  position: absolute;
+  top: 2%;
+  bottom: 2%;
+  width: 1px;
+  background: #b6a28c;
+  transform: rotateY(90deg);
+}
+.deal-card:before {
+  left: 0;
+}
+.deal-card:after {
+  right: 0;
+}
+.deal-shadow {
+  position: absolute;
+  inset: 2%;
+  background: #07030e;
+  filter: blur(4px);
+  pointer-events: none;
+}
+.deal-light {
+  position: absolute;
+  inset: 2%;
+  background: linear-gradient(110deg, #07030e90, transparent 50%, #ecdcba35);
   pointer-events: none;
 }
 #result-choices {

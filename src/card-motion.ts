@@ -25,12 +25,23 @@ export function createCardMotion() {
         deck.offsetHeight -
         (spread.offsetTop + slot.offsetTop + slot.offsetHeight);
       const scale = deck.offsetWidth / slot.offsetWidth;
+      const lift = slot.offsetWidth * 0.64;
+      const card = document.createElement('div');
+      card.className = 'deal-card';
       const back = document.createElement('span');
       back.className = 'deal-back';
       back.setAttribute('aria-hidden', 'true');
+      const shadow = document.createElement('div');
+      shadow.className = 'deal-shadow';
+      shadow.setAttribute('aria-hidden', 'true');
+      const light = document.createElement('span');
+      light.className = 'deal-light';
+      light.setAttribute('aria-hidden', 'true');
       slot.classList.add('dealing');
-      slot.append(back);
-      const options: KeyframeAnimationOptions = { duration: 850, fill: 'both' };
+      face.append(light);
+      card.append(face, back);
+      slot.append(shadow, card);
+      const options: KeyframeAnimationOptions = { duration: 1500, fill: 'both' };
       const animations = [
         slot.animate(
           [
@@ -39,25 +50,52 @@ export function createCardMotion() {
               offset: 0,
               easing: 'cubic-bezier(0.3, 0.1, 0.3, 1)',
             },
-            { transform: 'translate(0, 0) scale(1)', offset: 0.7 },
+            { transform: 'translate(0, 0) scale(1)', offset: 0.38 },
             { transform: 'translate(0, 0) scale(1)', offset: 1 },
           ],
           options,
         ),
-        back.animate(
+        // One rigid sheet with two faces. Height clears half the card width at
+        // the edge-on point, so its lower edge never cuts through the cloth.
+        card.animate(
           [
-            { transform: 'scaleX(1)', opacity: 1, offset: 0 },
-            { transform: 'scaleX(1)', opacity: 1, offset: 0.62 },
-            { transform: 'scaleX(0)', opacity: 1, offset: 0.8 },
-            { transform: 'scaleX(0)', opacity: 0, offset: 1 },
+            { transform: 'translateZ(0) rotateY(180deg)', offset: 0 },
+            {
+              transform: 'translateZ(0) rotateY(180deg)',
+              offset: 0.42,
+              easing: 'cubic-bezier(0.42, 0, 1, 1)',
+            },
+            { transform: `translateZ(${lift * 0.65}px) rotateY(145deg)`, offset: 0.54 },
+            { transform: `translateZ(${lift}px) rotateY(90deg)`, offset: 0.67 },
+            {
+              transform: `translateZ(${lift * 0.65}px) rotateY(35deg)`,
+              offset: 0.8,
+              easing: 'cubic-bezier(0, 0, 0.25, 1)',
+            },
+            { transform: 'translateZ(3px) rotateY(0deg)', offset: 0.94, easing: 'ease-out' },
+            { transform: 'translateZ(0) rotateY(0deg)', offset: 1 },
           ],
           options,
         ),
-        face.animate(
+        shadow.animate(
           [
-            { transform: 'scaleX(0)', offset: 0 },
-            { transform: 'scaleX(0)', offset: 0.8 },
-            { transform: 'scaleX(1)', offset: 1 },
+            { transform: 'translate(3px, 5px) scale(1)', opacity: 0.5, offset: 0 },
+            { transform: 'translate(3px, 5px) scale(1)', opacity: 0.5, offset: 0.42 },
+            {
+              transform: 'translate(8px, 18px) scale(0.28, 0.94)',
+              opacity: 0.18,
+              offset: 0.67,
+            },
+            { transform: 'translate(3px, 5px) scale(1)', opacity: 0.5, offset: 1 },
+          ],
+          options,
+        ),
+        light.animate(
+          [
+            { opacity: 0, offset: 0 },
+            { opacity: 0.65, offset: 0.67 },
+            { opacity: 0.25, offset: 0.8 },
+            { opacity: 0, offset: 1 },
           ],
           options,
         ),
@@ -71,7 +109,9 @@ export function createCardMotion() {
       } finally {
         animations.forEach((animation) => animation.cancel());
         slot.classList.remove('dealing');
-        back.remove();
+        light.remove();
+        card.replaceWith(face);
+        shadow.remove();
         if (active === animations) active = [];
       }
     },

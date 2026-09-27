@@ -41,6 +41,28 @@ test('cards leave the stack once and settle after pause, resize or reduced motio
     button.click();
   });
   expect(draws).toBe(1);
+  const cardImage = page.locator('.dealing .tarot-card img');
+  const originalSource = await cardImage.getAttribute('src');
+  const originalOrientation = await cardImage.getAttribute('class');
+  const seekDeal = async (progress: number) => {
+    await page.locator('.dealing').evaluate((slot, progress) => {
+      for (const animation of slot.getAnimations({ subtree: true })) {
+        animation.pause();
+        animation.currentTime = Number(animation.effect!.getTiming().duration) * progress;
+      }
+    }, progress);
+  };
+  await seekDeal(0.42);
+  const resting = (await page.locator('.deal-card').boundingBox())!;
+  await page.screenshot({ path: `.private/qa/card-flip-${test.info().project.name}-back.png` });
+  await seekDeal(0.67);
+  const turning = (await page.locator('.deal-card').boundingBox())!;
+  // The rigid card rises above the cloth and presents its edge during the turn.
+  expect(turning.y).toBeLessThan(resting.y - 5);
+  expect(turning.width).toBeLessThan(resting.width * 0.65);
+  await page.screenshot({ path: `.private/qa/card-flip-${test.info().project.name}-edge.png` });
+  await seekDeal(0.85);
+  await page.screenshot({ path: `.private/qa/card-flip-${test.info().project.name}-face.png` });
   await page.getByRole('button', { name: 'Open game menu' }).click();
   expect(
     await page
@@ -53,6 +75,11 @@ test('cards leave the stack once and settle after pause, resize or reduced motio
   ).toBe(true);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Draw card 2 of 3' })).toBeEnabled();
+  await expect(page.locator('.deal-card, .deal-shadow, .deal-light')).toHaveCount(0);
+  const settledImage = page.locator('#spread .tarot-card img');
+  await expect(settledImage).toHaveCount(1);
+  await expect(settledImage).toHaveAttribute('src', originalSource!);
+  expect(await settledImage.getAttribute('class')).toBe(originalOrientation);
 
   await page.getByRole('button', { name: 'Draw card 2 of 3' }).click();
   await expect(page.locator('.dealing')).toHaveCount(1);
