@@ -102,6 +102,7 @@ test('three physical candles and the persistent daily limit', async ({ page }) =
 test('keyboard input, Escape menu and untrusted text', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Enter the tent' })).toBeVisible();
   await page.keyboard.press('Space');
   const input = page.getByRole('textbox', { name: 'Your question' });
   await input.fill('<img src=x onerror=alert(1)> What should I consider?');

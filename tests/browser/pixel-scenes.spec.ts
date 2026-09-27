@@ -23,17 +23,10 @@ for (const scene of ['exterior', 'interior'] as const) {
       await route.continue();
     });
     const frame = page.locator(`.${scene}-scene`);
-    const raw = frame.locator('.scene-image:not(canvas), .scene-candle, .orb-aura');
     try {
       await page.reload({ waitUntil: 'domcontentloaded' });
-      await expect
-        .poll(() =>
-          page.locator(`#${scene}-video`).evaluate((video: HTMLVideoElement) => video.readyState),
-        )
-        .toBeGreaterThanOrEqual(2);
-      await expect(frame).not.toHaveClass(/pixel-ready|pixel-fallback/);
-      for (const source of await raw.all()) await expect(source).toHaveCSS('visibility', 'hidden');
-      await expect(frame.locator('canvas')).toBeHidden();
+      await expect(page.locator('.asset-loading')).toBeVisible();
+      await expect(frame).toHaveCount(0);
       await page.screenshot({
         path: `.private/qa/${test.info().project.name}-${scene}-reload-loading.png`,
       });

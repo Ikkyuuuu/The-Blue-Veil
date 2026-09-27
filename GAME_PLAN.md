@@ -1,6 +1,6 @@
 # Tarot tent — complete build plan
 
-Planning date: 26 September 2026. Status: local implementation and AWS infrastructure templates are present; no cloud resources have been deployed. See IMPLEMENTATION_BACKLOG.md for verified work and remaining launch gates. Account-specific discovery and security findings are maintained separately in ignored local records.
+Planning date: 26 September 2026. Status: a small AWS demo was deployed and smoke-tested on 27 September 2026, with a Thailand backend and an active CloudFront Free plan. See IMPLEMENTATION_BACKLOG.md for verified work and remaining launch gates. Account-specific discovery and security findings are maintained separately in ignored local records.
 
 ## 1. Agreed scope and proposed defaults
 
@@ -84,13 +84,14 @@ Performance goals to measure: initial playable shell/poster around 1 MB or less;
 
 ## 4. AWS architecture
 
-Recommended launch architecture uses one CloudFront distribution, private S3 assets, an IAM-protected Lambda Function URL, DynamoDB and an asynchronous Bedrock worker.
+The owner-selected Thailand launch architecture uses one CloudFront distribution, private S3 assets, an authorized API Gateway HTTP API, DynamoDB and an asynchronous Bedrock worker.
 
 ```mermaid
 flowchart TD
     Browser[Browser: game and secure cookie] --> Edge[CloudFront + WAF]
     Edge -->|static assets, OAC| S3[Private S3 bucket]
-    Edge -->|/api/*, no cache, OAC| API[Lambda API: IAM Function URL]
+    Edge -->|/api/*, no cache, private origin token| Gateway[HTTP API + Lambda authorizer]
+    Gateway --> API[Lambda API]
     API --> State[DynamoDB: sessions, quota, reading state]
     API --> Content[DynamoDB: expiring question and answer]
     State -->|metadata outbox stream| Dispatch[Dispatcher Lambda]
@@ -98,7 +99,7 @@ flowchart TD
     Queue --> Worker[Reading worker Lambda]
     Worker --> Limits[DynamoDB: atomic spend and attempt limits]
     Worker --> Guard[Bedrock Guardrails]
-    Worker --> Model[Bedrock Converse: Nova Micro candidate]
+    Worker --> Model[Bedrock Converse: Nova Micro]
     Worker --> Content
     Worker --> State
     Reconcile[Scheduled reconciliation and cleanup] --> State
@@ -106,19 +107,19 @@ flowchart TD
     Reconcile --> Queue
 ```
 
-**Placement decision pending:** the original Thailand default (`ap-southeast-7`) cannot currently deploy this Function URL architecture: read-only CloudFormation registry checks found no `AWS::Lambda::Url` type there. Singapore (`ap-southeast-1`) does expose that type. Choose Singapore or redesign the API before cloud deployment; the source still retains the original default pending that decision. Start model evaluation with `us.amazon.nova-micro-v1:0`, called through the Bedrock runtime in `us-east-1`; verify its destination regions before deployment. This uses the owner's permission for processing outside Thailand. APAC Nova Micro/Lite profiles remain alternatives if availability, pricing and latency tests support them. Listing a model is not proof that inference succeeds.
+**Placement:** the owner selected Thailand (`ap-southeast-7`), so the backend uses the supported HTTP API service instead of the unavailable Lambda Function URL resource. The demo uses `us.amazon.nova-micro-v1:0` through the Bedrock runtime in `us-east-1`, with the selected US inference destinations scoped in IAM. A synthetic queued reading completed with both guardrail checks on 27 September 2026. This uses the owner's permission for processing outside Thailand; broader quality evaluation remains a follow-up.
 
 Keep edge configuration in a separate infrastructure stack: CloudFront is global; its WAF configuration and a future CloudFront custom-domain ACM certificate use `us-east-1`. Tag application resources with project, environment and owner; verify which inference charges support project attribution, and reconcile those against the application usage ledger. Use explicit account/region parameters in both stacks. [CloudFront certificate region](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-requirements.html), [WAF scope](https://docs.aws.amazon.com/waf/latest/APIReference/API_CreateWebACL.html)
 
-**Edge budget:** provisionally select CloudFront's $0 Free flat-rate plan, which currently includes 1 million requests, 100 GB delivery allowance, five WAF rules and CloudFront Functions. Verify account eligibility, historical usage, available plan slots and the final configuration before subscribing. Free-plan custom cache/origin/response policies are restricted; use managed policies and small edge functions. The no-overage promise covers included edge services, not Lambda, DynamoDB or Bedrock. [AWS plan features and restrictions](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/flat-rate-pricing-plan.html)
+**Edge budget:** the demo has an ACTIVE CloudFront $0 Free flat-rate subscription. For new deployments, select this plan, which currently includes 1 million requests, 100 GB delivery allowance, five WAF rules and CloudFront Functions. Verify account eligibility, historical usage, available plan slots and the final configuration before subscribing. Free-plan custom cache/origin/response policies are restricted; use managed policies and small edge functions. The no-overage promise covers included edge services, not Lambda, DynamoDB or Bedrock. [AWS plan features and restrictions](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/flat-rate-pricing-plan.html)
 
 Use two primary cache behaviors: static default and `/api/*`. For the API select managed `CachingDisabled` and `AllViewerExceptHostHeader`; forward session cookies and Origin headers, and exclude the viewer Host header from origin requests. All API responses also send `Cache-Control: no-store`. Add explicit API error handling, never a global SPA fallback that converts API errors into cached HTML. [Managed origin policies](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html)
 
-Configure the Function URL as `AWS_IAM`; OAC always signs requests. Its resource policy permits only the intended CloudFront distribution, with both required invoke permissions. Direct unsigned origin calls must fail. For POST requests the frontend hashes the exact UTF-8 request body into `x-amz-content-sha256`; this is a payload hash, not an AWS credential. Browser clients never receive AWS keys. Prove cookie forwarding, POST hashing, no caching, and Free-plan compatibility in an infrastructure spike before building the full API. [Lambda URL OAC requirements](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-lambda.html)
+CloudFront injects a 64-character random private origin token, held in Secrets Manager. An HTTP API Lambda authorizer checks it before the integration runs, and the API handler checks it again before trusting network headers or using storage. Missing/wrong tokens and secret lookup failures deny access. Only API Gateway may invoke these Lambdas through their scoped resource permissions; no Function URL exists. The token never reaches the browser. Cache origin authorization for 60 seconds, throttle the API stage to five requests/second with a burst of ten, and prove direct-origin rejection, cookie forwarding, no caching and Free-plan compatibility live. This is a shared-secret origin control, not AWS IAM signing; operators who can read CloudFront configuration can read the token. [HTTP API authorizers](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-lambda-authorizer.html)
 
 Use a private S3 REST origin with OAC and bucket public-access blocks. No S3 website endpoint. Set security headers using the application, an edge response function for static files, and supported managed policies; test errors as well as successful pages.
 
-The selected Function URL architecture avoids an API Gateway service; keeping Thailand would require reassessing that choice. If the proposed edge configuration proves incompatible, document and price the replacement before launch. Do not quietly expose an unauthenticated Function URL or drop the firewall. Separate paid WAF can consume much of this budget; a private beta is an acceptable interim stage while resolving eligibility.
+Thailand HTTP API adds usage charges: the AWS price-list query on 27 September 2026 returned $1.125 per million HTTP API requests for the first volume tier (about $0.113 for 100,000 requests). Authorizer Lambda calls and the separate origin secret also incur their ordinary service charges. Include these in the $10 forecast; API Gateway has no always-running instance fee. If the edge configuration proves incompatible, document and price a replacement before launch. Do not drop origin authentication or the firewall to fit the budget. [API Gateway pricing](https://aws.amazon.com/api-gateway/pricing/)
 
 No EC2, container cluster, ALB, RDS, NAT gateway, provisioned model throughput or vector database. No Bedrock agent, web retrieval or external tools are needed to interpret three known cards.
 
@@ -212,7 +213,7 @@ Set project-tagged AWS Budget alerts at $5, $8 and $10, plus a separate view of 
 
 ## 9. Delivery phases and launch gates
 
-1. **Foundation:** lock gameplay copy and asset rights; create a non-root deployment identity; prove CloudFront Free + OAC + POST/cookies; verify model/guardrail access, retention and pricing with synthetic requests.
+1. **Foundation:** lock gameplay copy and asset rights; create a scoped non-root deployment identity; prove CloudFront Free + S3 OAC + HTTP API origin authentication + POST/cookies; verify model/guardrail access, retention and pricing with synthetic requests.
 2. **Local playable slice:** outside → entry → question → three cards → fixture answer, all animation/input/accessibility states, no AWS dependency. Finish dynamic candle assets.
 3. **Authoritative backend:** sessions, ownership, exact transactional quotas, server draws, resume, cancellation, refunds and global caps. Test with a fake model first.
 4. **AI integration:** outbox/queue/worker, bounded Bedrock calls, guardrails, schema validation, quality evaluation, recovery and measured costs.

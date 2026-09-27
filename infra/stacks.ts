@@ -3,8 +3,6 @@ import {
   Stack,
   CfnOutput,
   CfnParameter,
-  CfnCondition,
-  Fn,
   Duration,
   RemovalPolicy,
   Tags,
@@ -23,25 +21,56 @@ import {
   aws_pricingplanmanager as plans,
   aws_cloudwatch as cloudwatch,
   aws_secretsmanager as secretsmanager,
+  aws_apigatewayv2 as apigateway,
+  aws_sns as sns,
+  aws_sns_subscriptions as subscriptions,
+  aws_cloudwatch_actions as alarmActions,
+  SecretValue,
+  CliCredentialsStackSynthesizer,
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import { VIEWER_NETWORK_CODE } from './viewer-network.js';
 
+export type DeploymentOptions = {
+  assetBucketPrefix?: string;
+  workloadBoundaryArn?: string;
+};
+
+function synthesizer(options: DeploymentOptions, region: string) {
+  return options.assetBucketPrefix
+    ? new CliCredentialsStackSynthesizer({
+        fileAssetsBucketName: `${options.assetBucketPrefix}-${region}`,
+      })
+    : undefined;
+}
+
 export class BackendStack extends Stack {
-  constructor(scope: Construct, id: string, region: string, account?: string) {
-    super(scope, id, { env: { region, account } });
+  constructor(
+    scope: Construct,
+    id: string,
+    region: string,
+    account?: string,
+    options: DeploymentOptions = {},
+  ) {
+    super(scope, id, { env: { region, account }, synthesizer: synthesizer(options, region) });
+    if (options.workloadBoundaryArn)
+      iam.PermissionsBoundary.of(this).apply(
+        iam.ManagedPolicy.fromManagedPolicyArn(
+          this,
+          'WorkloadBoundary',
+          options.workloadBoundaryArn,
+        ),
+      );
     const origin = new CfnParameter(this, 'AppOrigin', {
       type: 'String',
       default: 'https://unconfigured.invalid',
       allowedPattern: 'https://[a-zA-Z0-9.-]+',
     });
-    const distributionArn = new CfnParameter(this, 'DistributionArn', {
+    const originSecretArn = new CfnParameter(this, 'OriginSecretArn', {
       type: 'String',
-      default: '',
-      allowedPattern: '^$|^arn:aws:cloudfront::[0-9]+:distribution/[A-Z0-9]+$',
-    });
-    const hasDistribution = new CfnCondition(this, 'HasDistribution', {
-      expression: Fn.conditionNot(Fn.conditionEquals(distributionArn.valueAsString, '')),
+      noEcho: true,
+      default: 'arn:aws:secretsmanager:us-east-1:' + '0'.repeat(12) + ':secret:unconfigured',
+      allowedPattern: '^arn:aws:secretsmanager:us-east-1:[0-9]{12}:secret:.+$',
     });
     const guardrailId = new CfnParameter(this, 'GuardrailId', {
       type: 'String',
@@ -55,6 +84,11 @@ export class BackendStack extends Stack {
       type: 'String',
       default: 'false',
       allowedValues: ['true', 'false'],
+    });
+    const alertEmail = new CfnParameter(this, 'AlertEmail', {
+      type: 'String',
+      noEcho: true,
+      allowedPattern: '[^\\s@]+@[^\\s@]+\\.[^\\s@]+',
     });
     const state = new ddb.Table(this, 'State', {
       partitionKey: { name: 'pk', type: ddb.AttributeType.STRING },
@@ -120,6 +154,7 @@ export class BackendStack extends Stack {
         }),
       });
     const networkSecret = new secretsmanager.Secret(this, 'NetworkQuotaSecret', {
+      secretName: `${id}-network-quota`,
       description: 'Server-only HMAC key for daily network abuse allowances',
       generateSecretString: { passwordLength: 64, excludePunctuation: true },
       removalPolicy: RemovalPolicy.RETAIN,
@@ -127,8 +162,19 @@ export class BackendStack extends Stack {
     const api = create('Api', 'apiHandler', 15, 256, {
       APP_ORIGIN: origin.valueAsString,
       NETWORK_SECRET_ARN: networkSecret.secretArn,
+      ORIGIN_SECRET_ARN: originSecretArn.valueAsString,
     });
     networkSecret.grantRead(api);
+    const authorizer = create('OriginAuthorizer', 'originAuthorizerHandler', 5, 128, {
+      ORIGIN_SECRET_ARN: originSecretArn.valueAsString,
+    });
+    for (const fn of [api, authorizer])
+      fn.addToRolePolicy(
+        new iam.PolicyStatement({
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: [originSecretArn.valueAsString],
+        }),
+      );
     const worker = create('Worker', 'workerHandler', 45, 256, {
       BEDROCK_REGION: 'us-east-1',
       BEDROCK_INFERENCE_PROFILE_ID: 'us.amazon.nova-micro-v1:0',
@@ -208,7 +254,11 @@ export class BackendStack extends Stack {
       }),
     );
     worker.addEventSource(
-      new eventsources.SqsEventSource(queue, { batchSize: 1, reportBatchItemFailures: true }),
+      new eventsources.SqsEventSource(queue, {
+        batchSize: 1,
+        reportBatchItemFailures: true,
+        maxConcurrency: 2,
+      }),
     );
     new events.Rule(this, 'ReconcileEveryFiveMinutes', {
       schedule: events.Schedule.rate(Duration.minutes(5)),
@@ -232,47 +282,83 @@ export class BackendStack extends Stack {
         ],
       }),
     );
-    const url = api.addFunctionUrl({ authType: lambda.FunctionUrlAuthType.AWS_IAM });
-    for (const [name, action] of [
-      ['UrlPermission', 'lambda:InvokeFunctionUrl'],
-      ['InvokePermission', 'lambda:InvokeFunction'],
-    ] as const) {
-      const permission = new lambda.CfnPermission(this, name, {
-        action,
-        functionName: api.functionName,
-        principal: 'cloudfront.amazonaws.com',
-        sourceArn: distributionArn.valueAsString,
-        ...(action === 'lambda:InvokeFunctionUrl'
-          ? { functionUrlAuthType: 'AWS_IAM' }
-          : { invokedViaFunctionUrl: true }),
-      });
-      permission.cfnOptions.condition = hasDistribution;
-    }
-    new cloudwatch.Alarm(this, 'DeadLetterAlarm', {
+    const http = new apigateway.CfnApi(this, 'HttpApi', {
+      name: `${id}-api`,
+      protocolType: 'HTTP',
+    });
+    const auth = new apigateway.CfnAuthorizer(this, 'OriginAuthorization', {
+      apiId: http.ref,
+      name: 'CloudFrontOrigin',
+      authorizerType: 'REQUEST',
+      authorizerPayloadFormatVersion: '2.0',
+      enableSimpleResponses: true,
+      authorizerResultTtlInSeconds: 60,
+      identitySource: ['$request.header.x-blue-veil-origin'],
+      authorizerUri: `arn:aws:apigateway:${region}:lambda:path/2015-03-31/functions/${authorizer.functionArn}/invocations`,
+    });
+    authorizer.addPermission('GatewayAuthorizer', {
+      principal: new iam.ServicePrincipal('apigateway.amazonaws.com'),
+      sourceArn: `arn:aws:execute-api:${region}:${this.account}:${http.ref}/authorizers/${auth.ref}`,
+    });
+    const integration = new apigateway.CfnIntegration(this, 'ApiIntegration', {
+      apiId: http.ref,
+      integrationType: 'AWS_PROXY',
+      integrationUri: api.functionArn,
+      payloadFormatVersion: '2.0',
+      timeoutInMillis: 15000,
+    });
+    new apigateway.CfnRoute(this, 'ApiRoute', {
+      apiId: http.ref,
+      routeKey: 'ANY /api/{proxy+}',
+      target: `integrations/${integration.ref}`,
+      authorizationType: 'CUSTOM',
+      authorizerId: auth.ref,
+    });
+    new apigateway.CfnStage(this, 'ApiStage', {
+      apiId: http.ref,
+      stageName: '$default',
+      autoDeploy: true,
+      defaultRouteSettings: { throttlingBurstLimit: 10, throttlingRateLimit: 5 },
+    });
+    api.addPermission('GatewayApi', {
+      principal: new iam.ServicePrincipal('apigateway.amazonaws.com'),
+      sourceArn: `arn:aws:execute-api:${region}:${this.account}:${http.ref}/*/*/api/*`,
+    });
+    const alerts = new sns.Topic(this, 'Alerts');
+    alerts.addSubscription(new subscriptions.EmailSubscription(alertEmail.valueAsString));
+    const deadLetters = new cloudwatch.Alarm(this, 'DeadLetterAlarm', {
       metric: dlq.metricApproximateNumberOfMessagesVisible(),
       threshold: 1,
       evaluationPeriods: 1,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
-    new cloudwatch.Alarm(this, 'WorkerErrors', {
+    const workerErrors = new cloudwatch.Alarm(this, 'WorkerErrors', {
       metric: worker.metricErrors(),
       threshold: 3,
       evaluationPeriods: 1,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
-    new CfnOutput(this, 'ApiHostname', { value: Fn.select(2, Fn.split('/', url.url)) });
+    for (const alarm of [deadLetters, workerErrors])
+      alarm.addAlarmAction(new alarmActions.SnsAction(alerts));
+    new CfnOutput(this, 'ApiHostname', {
+      value: `${http.ref}.execute-api.${region}.amazonaws.com`,
+    });
     new CfnOutput(this, 'StateTable', { value: state.tableName });
     new CfnOutput(this, 'ContentTable', { value: content.tableName });
     new CfnOutput(this, 'JobQueueUrl', { value: queue.queueUrl });
+    new CfnOutput(this, 'AlertsTopicArn', { value: alerts.topicArn });
   }
 }
 
 export class EdgeStack extends Stack {
-  constructor(scope: Construct, id: string, account?: string) {
-    super(scope, id, { env: { region: 'us-east-1', account } });
+  constructor(scope: Construct, id: string, account?: string, options: DeploymentOptions = {}) {
+    super(scope, id, {
+      env: { region: 'us-east-1', account },
+      synthesizer: synthesizer(options, 'us-east-1'),
+    });
     const apiHostname = new CfnParameter(this, 'ApiHostname', {
       type: 'String',
-      allowedPattern: '[a-z0-9]+\\.lambda-url\\.ap-southeast-7\\.on\\.aws',
+      allowedPattern: '[a-z0-9]+\\.execute-api\\.ap-southeast-7\\.amazonaws\\.com',
     });
     const bucket = new s3.Bucket(this, 'Assets', {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -290,13 +376,11 @@ export class EdgeStack extends Stack {
         signingProtocol: 'sigv4',
       },
     });
-    const apiOac = new cf.CfnOriginAccessControl(this, 'ApiOac', {
-      originAccessControlConfig: {
-        name: `${id}-api`,
-        originAccessControlOriginType: 'lambda',
-        signingBehavior: 'always',
-        signingProtocol: 'sigv4',
-      },
+    const originSecret = new secretsmanager.Secret(this, 'OriginSecret', {
+      secretName: `${id}-origin-token`,
+      description: 'Private CloudFront to HTTP API authentication token',
+      generateSecretString: { passwordLength: 64, excludePunctuation: true },
+      removalPolicy: RemovalPolicy.RETAIN,
     });
     const visibility = (name: string) => ({
       sampledRequestsEnabled: false,
@@ -304,6 +388,7 @@ export class EdgeStack extends Stack {
       metricName: name,
     });
     const acl = new waf.CfnWebACL(this, 'Firewall', {
+      name: `${id}-firewall`,
       scope: 'CLOUDFRONT',
       defaultAction: { allow: {} },
       visibilityConfig: visibility('TarotFirewall'),
@@ -317,34 +402,13 @@ export class EdgeStack extends Stack {
           },
           visibilityConfig: visibility('RequestRate'),
         },
-        {
-          name: 'ApiRate',
-          priority: 1,
-          action: { block: {} },
-          statement: {
-            rateBasedStatement: {
-              limit: 120,
-              aggregateKeyType: 'IP',
-              evaluationWindowSec: 60,
-              scopeDownStatement: {
-                byteMatchStatement: {
-                  fieldToMatch: { uriPath: {} },
-                  positionalConstraint: 'STARTS_WITH',
-                  searchString: '/api/',
-                  textTransformations: [{ priority: 0, type: 'NONE' }],
-                },
-              },
-            },
-          },
-          visibilityConfig: visibility('ApiRate'),
-        },
       ],
     });
     const responseHeaders = new cf.CfnFunction(this, 'Headers', {
       name: `${id}-headers`,
       autoPublish: true,
       functionConfig: { comment: 'Static response security headers', runtime: 'cloudfront-js-2.0' },
-      functionCode: `function handler(event){var r=event.response;var h=r.headers;h['content-security-policy']={value:"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"};h['x-content-type-options']={value:'nosniff'};h['referrer-policy']={value:'no-referrer'};h['x-frame-options']={value:'DENY'};h['strict-transport-security']={value:'max-age=31536000'};h['permissions-policy']={value:'camera=(), microphone=(), geolocation=()'};return r;}`,
+      functionCode: `function handler(event){var r=event.response;var h=r.headers;h['content-security-policy']={value:"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"};h['x-content-type-options']={value:'nosniff'};h['referrer-policy']={value:'no-referrer'};h['x-frame-options']={value:'DENY'};h['strict-transport-security']={value:'max-age=31536000'};h['permissions-policy']={value:'camera=(), microphone=(), geolocation=()'};return r;}`,
     });
     const functions = [
       { eventType: 'viewer-response', functionArn: responseHeaders.attrFunctionArn },
@@ -358,8 +422,8 @@ export class EdgeStack extends Stack {
       },
       functionCode: VIEWER_NETWORK_CODE,
     });
-    const disabled = '413f160a-7fce-4cc4-9e90-24b55beafc7d',
-      optimized = '658327ea-f89d-4fab-a63d-7e88639e58f6';
+    const disabled = cf.CachePolicy.CACHING_DISABLED.cachePolicyId,
+      optimized = cf.CachePolicy.CACHING_OPTIMIZED.cachePolicyId;
     const distribution = new cf.CfnDistribution(this, 'Distribution', {
       distributionConfig: {
         enabled: true,
@@ -382,7 +446,12 @@ export class EdgeStack extends Stack {
               originProtocolPolicy: 'https-only',
               originSslProtocols: ['TLSv1.2'],
             },
-            originAccessControlId: apiOac.attrId,
+            originCustomHeaders: [
+              {
+                headerName: 'x-blue-veil-origin',
+                headerValue: SecretValue.secretsManager(originSecret.secretArn).unsafeUnwrap(),
+              },
+            ],
           },
         ],
         defaultCacheBehavior: {
@@ -408,7 +477,8 @@ export class EdgeStack extends Stack {
             allowedMethods: ['GET', 'HEAD', 'OPTIONS', 'PUT', 'PATCH', 'POST', 'DELETE'],
             cachedMethods: ['GET', 'HEAD'],
             cachePolicyId: disabled,
-            originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac',
+            originRequestPolicyId:
+              cf.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER.originRequestPolicyId,
             functionAssociations: [
               { eventType: 'viewer-request', functionArn: viewerNetwork.attrFunctionArn },
             ],
@@ -459,12 +529,17 @@ export class EdgeStack extends Stack {
     new CfnOutput(this, 'AssetsBucket', { value: bucket.bucketName });
     new CfnOutput(this, 'GuardrailId', { value: guardrail.attrGuardrailId });
     new CfnOutput(this, 'GuardrailVersion', { value: guardrailVersion.attrVersion });
+    new CfnOutput(this, 'OriginSecretArn', { value: originSecret.secretArn });
   }
 }
-export function createApp(account?: string, region = 'ap-southeast-7') {
+export function createApp(
+  account?: string,
+  region = 'ap-southeast-7',
+  options: DeploymentOptions = {},
+) {
   const app = new App({ outdir: 'cdk.out' });
-  new BackendStack(app, 'TarotBackend', region, account);
-  new EdgeStack(app, 'TarotEdge', account);
+  new BackendStack(app, 'TarotBackend', region, account, options);
+  new EdgeStack(app, 'TarotEdge', account, options);
   Tags.of(app).add('Project', 'TheBlueVeil');
   Tags.of(app).add('Environment', 'beta');
   return app;

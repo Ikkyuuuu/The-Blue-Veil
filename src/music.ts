@@ -1,4 +1,5 @@
-export const MUSIC_URL = '/assets/music/a-dragons-lullaby-2023.mp3';
+import { assetUrl, MUSIC_URL } from './assets';
+export { MUSIC_URL } from './assets';
 
 type MusicState = { enabled: boolean; speaking: boolean; orb: boolean };
 
@@ -40,7 +41,7 @@ export class BackgroundMusic {
       this.gain.gain.setValueAtTime(0, this.ctx.currentTime);
       return;
     }
-    if (!this.audio.src) this.audio.src = MUSIC_URL;
+    if (!this.audio.src) this.audio.src = assetUrl(MUSIC_URL);
     if (this.audio.paused && !this.starting && !this.blocked) {
       this.starting = true;
       let interrupted = false;

@@ -1,6 +1,6 @@
 # Anonymous network allowance
 
-Implemented locally and in the AWS infrastructure templates on 27 September 2026. No AWS resources were deployed for this change.
+Implemented and deployed in the small AWS demo on 27 September 2026. Live checks confirmed shared-network contention, ownership isolation and forged-header replacement.
 
 ## Behavior
 
@@ -10,7 +10,7 @@ IPv4 addresses are normalized, including IPv4-mapped IPv6. Native IPv6 uses a /6
 
 ## Trusted address and storage
 
-1. On `/api/*`, a CloudFront viewer-request function replaces `x-blue-veil-network` with `event.viewer.ip`, discarding any viewer-supplied duplicate values. The managed AllViewerExceptHostHeader policy forwards it to the uncached API. The existing IAM Function URL and OAC restrict the origin to the configured distribution. Direct unsigned origin requests remain forbidden. Do not expose a second unprotected route to this handler.
+1. On `/api/*`, a CloudFront viewer-request function replaces `x-blue-veil-network` with `event.viewer.ip`, discarding any viewer-supplied duplicate values. The managed AllViewerExceptHostHeader policy forwards it to the uncached HTTP API. CloudFront injects a separate private origin token; both a Lambda authorizer and the API handler validate it before trusting the address. Direct requests with missing/wrong tokens remain forbidden. The token is separate from the network HMAC key and never sent to players. Do not expose a second unprotected route to this handler.
 2. Lambda accepts only this header, never `X-Forwarded-For`, `Forwarded`, the body, or the CloudFront origin connection address. The local loopback adapter instead uses the TCP socket address and ignores all forwarding headers. Missing or malformed addresses fail closed for session/allowance creation and question acceptance.
 3. A 64-character random server secret produces HMAC-SHA256 over a version tag, Bangkok date and normalized network. Only the digest/day key and count/expiry reach DynamoDB. Including the day prevents ordinary database comparisons from linking a network across days. This is pseudonymization, not reversible encryption or a guarantee of anonymity; an operator with the secret and candidate IPs could recompute identifiers. Plain unsalted IP hashes would be guessable and are not used.
 4. The network counter participates in the same transaction as the browser quota, reading/content, lock, idempotency and global acceptance counters. Conflicting transactions retry and re-check the cap. Reading ownership and random browser credentials never derive from the network digest.
@@ -30,10 +30,10 @@ Local development creates a separate random key beside `LOCAL_STATE_FILE`, with 
 
 One Secrets Manager secret adds approximately $0.40/month plus retrieval charges at the published standard price, with retrievals cached per Lambda execution environment. Confirm the selected region's rates before deployment. [AWS pricing](https://aws.amazon.com/secrets-manager/pricing/).
 
-## AWS release checks still required
+## AWS validation and follow-up
 
-- Resolve the existing deployment-region gate before any deployment.
-- Verify the viewer function overwrites forged single/multi-value headers and that only the protected distribution can invoke the origin.
-- Send concurrent synthetic submissions from several independent cookie jars; exactly three may succeed for one network/day, with no cross-session content access.
+- Deployed in Thailand. The live CloudFront function replaced forged single/multi-value network headers, and direct API requests without a valid private origin token were rejected.
+- Five concurrent synthetic sessions against the real Lambda/DynamoDB path accepted exactly three questions for one documentation-only test network. Retries did not consume extra slots; cross-session reads/deletes were rejected, cancellation removed content and a fresh session still saw zero allowance.
+- A public CloudFront request with forged network, forwarding and origin headers still used the real shared allowance. The site delivered private S3 objects only through CloudFront.
 - Verify secrets fail closed, least-privilege grants, encrypted tables, log redaction and expired-counter cleanup in the deployed account.
 - Verify midnight reset, cancellation, duplicate submissions, delayed workers and one-time refunds on real DynamoDB transactions. Local tests and synthesized templates do not prove these live integrations.

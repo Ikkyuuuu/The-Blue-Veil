@@ -1,5 +1,7 @@
 import './style.css';
 import './ui.css';
+import './loading.css';
+import { assetUrl, loadGameAssets } from './assets';
 import {
   CARDS,
   CARD_GROUPS,
@@ -17,6 +19,8 @@ import { createCardArt } from './card-art';
 import { prepareEntrance, waitForCurtainMatch } from './entrance';
 import { createReadingOrb } from './reading-orb';
 
+const loading = await loadGameAssets(document.querySelector<HTMLElement>('#app')!);
+
 const speaker =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h5l5-5v16l-5-5H3zM17 8v8m4-11v14"/></svg>';
 // GitHub Octicons mark-github-16; see /licenses/octicons-MIT.txt.
@@ -29,9 +33,9 @@ const fullscreenPaths = {
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <main id="game" aria-label="The Blue Veil tarot game">
   <div class="world" aria-hidden="true">
-    <div class="scene-frame exterior-scene"><img class="scene-image" src="/assets/scenes/exterior.jpg" alt=""><video id="exterior-video" class="scene-image" muted loop playsinline preload="auto" poster="/assets/scenes/exterior.jpg" src="/assets/scenes/exterior-master.mp4?v=live-pixel-1"></video></div>
-    <div class="scene-frame interior-scene"><img class="scene-image" src="/assets/scenes/interior-unlit.png" alt=""><video id="interior-video" class="scene-image figure-video" muted loop playsinline preload="none" src="/assets/scenes/interior-master.mp4?v=live-pixel-1"></video><video id="reading-video" class="scene-image figure-video reading-video" muted loop playsinline preload="none" src="/assets/scenes/reading-master.mp4?v=live-pixel-1"></video><div class="orb-aura"></div><div class="scene-candle candle-left"><i></i><b></b></div><div class="scene-candle candle-right"><i></i><b></b></div><div class="scene-candle candle-short"><i></i><b></b></div></div>
-    <div class="scene-frame entrance-scene"><video id="entrance-video" class="scene-image" muted playsinline preload="none" src="/assets/scenes/entrance-master.mp4?v=live-pixel-1"></video></div>
+    <div class="scene-frame exterior-scene"></div>
+    <div class="scene-frame interior-scene"><img class="scene-image" src="${assetUrl('/assets/scenes/interior-unlit.png')}" alt=""><video id="interior-video" class="scene-image figure-video" muted loop playsinline preload="none" src="${assetUrl('/assets/scenes/interior-master.mp4?v=live-pixel-1')}"></video><video id="reading-video" class="scene-image figure-video reading-video" muted loop playsinline preload="none" src="${assetUrl('/assets/scenes/reading-master.mp4?v=live-pixel-1')}"></video><div class="orb-aura"></div><div class="scene-candle candle-left"><i></i><b></b></div><div class="scene-candle candle-right"><i></i><b></b></div><div class="scene-candle candle-short"><i></i><b></b></div></div>
+    <div class="scene-frame entrance-scene"><video id="entrance-video" class="scene-image" muted playsinline preload="none" src="${assetUrl('/assets/scenes/entrance-master.mp4?v=live-pixel-1')}"></video></div>
     <div class="vignette"></div><div class="motes">${Array.from({ length: 9 }, (_, i) => `<i style="--n:${i}"></i>`).join('')}</div>
   </div>
   <div class="game-controls"><a id="github-link" class="icon-button" href="https://github.com/Ikkyuuuu/The-Blue-Veil" target="_blank" rel="noopener noreferrer" aria-label="The Blue Veil on GitHub (opens in a new tab)" title="View on GitHub · opens in a new tab">${github}</a><button id="sound" class="icon-button" aria-label="Turn game sound off" aria-pressed="true" title="Sound · dialogue, ambience and cards">${speaker}</button><button id="fullscreen-toggle" class="icon-button" aria-label="Enter fullscreen" aria-pressed="false" title="Enter fullscreen"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fullscreen-glyph" d="${fullscreenPaths.enter}"/></svg></button><button id="menu-toggle" class="icon-button" aria-label="Open game menu" title="Menu · Esc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M17 4v16"/></svg></button></div>
@@ -41,7 +45,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div id="card-focus" aria-hidden="true"></div>
     <div id="speech" class="speech" tabindex="-1"><p id="speech-title" hidden></p><p id="dialogue" aria-hidden="true"></p><p id="reader-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></p><div class="speech-actions"><button id="previous-line" title="Previous part of the reading" hidden>Back</button><button id="continue-reading" title="Space or click to continue" hidden>Next</button></div></div>
     <form id="question-form" autocomplete="off"><label class="sr-only" for="question">Your question</label><div class="question-shell"><span aria-hidden="true">&gt;</span><textarea id="question" rows="1" maxlength="1000" placeholder="Type your question..." aria-describedby="question-help"></textarea><button id="submit-question" aria-label="Ask the reader" type="submit" title="Ask · Enter">↵</button></div><span id="question-help" class="sr-only">Ask in 3 to 500 characters. Avoid names and personal details. Enter sends; Shift and Enter adds a line.</span></form>
-    <div id="table" hidden><p id="asked-question" class="sr-only"></p><button id="deck" class="deck" aria-label="Draw card 1 of 3">${Array.from({ length: 8 }, (_, index) => `<span class="deck-layer" style="--layer:${8 - index}" aria-hidden="true"></span>`).join('')}<img src="/assets/deck/back.png" alt="Tarot deck, face down" draggable="false"><span class="deck-hint">DRAW</span></button><div id="spread" class="spread" aria-label="Your three cards"></div></div>
+    <div id="table" hidden><p id="asked-question" class="sr-only"></p><button id="deck" class="deck" aria-label="Draw card 1 of 3">${Array.from({ length: 8 }, (_, index) => `<span class="deck-layer" style="--layer:${8 - index}" aria-hidden="true"></span>`).join('')}<img src="${assetUrl('/assets/deck/back.png')}" alt="Tarot deck, face down" draggable="false"><span class="deck-hint">DRAW</span></button><div id="spread" class="spread" aria-label="Your three cards"></div></div>
     <div id="result-choices" hidden><button id="ask-again" class="game-choice" aria-label="Ask again">Ask again</button><button id="delete-reading" class="game-choice" aria-label="Delete this reading">Forget this reading</button></div>
     <p id="allowance-label" class="sr-only" aria-live="polite"></p>
     <div id="error-box" role="alert" hidden><span id="error-message"></span><button id="reconnect" class="quiet-action">RECONNECT ▸</button></div>
@@ -52,6 +56,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <dialog id="info-dialog" class="game-dialog info-dialog"><button id="close-dialog" class="dialog-close" aria-label="Close dialog">×</button><div id="info-content"></div></dialog>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+const exteriorScene = loading.adopt(document.querySelector<HTMLElement>('.exterior-scene')!);
 const client = new Client(),
   sound = new Sound();
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -82,7 +87,7 @@ let pollTimer: ReturnType<typeof setTimeout> | undefined,
 const videos = ['exterior-video', 'interior-video', 'reading-video', 'entrance-video'].map((id) =>
   $<HTMLVideoElement>(id),
 );
-const pixelScenes = createPixelScenes();
+const pixelScenes = createPixelScenes(exteriorScene);
 const cardMotion = createCardMotion();
 const cardFocus = createCardFocus($('card-focus'), () => sound.effect('inspect'));
 const readingOrb = createReadingOrb($<HTMLVideoElement>('reading-video'), (active, phase) =>
@@ -637,10 +642,14 @@ function fitQuestionText() {
 }
 $('question').addEventListener('input', fitQuestionText);
 let questionWidth = 0;
+let questionFitFrame = 0;
 new ResizeObserver(([entry]) => {
   if (entry.contentRect.width === questionWidth) return;
   questionWidth = entry.contentRect.width;
-  fitQuestionText();
+  // Resize outside observer delivery so changing the textarea height does not
+  // trigger an undelivered resize notification during the first scene reveal.
+  cancelAnimationFrame(questionFitFrame);
+  questionFitFrame = requestAnimationFrame(fitQuestionText);
 }).observe($('question'));
 window.addEventListener('resize', fitQuestionText);
 void document.fonts.ready.then(fitQuestionText);

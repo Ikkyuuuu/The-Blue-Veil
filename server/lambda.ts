@@ -7,6 +7,7 @@ import { BedrockGenerator } from './generator.js';
 import { cleanup, processReading } from './worker.js';
 import { NETWORK_HEADER } from './network-quota.js';
 import { awsNetworkSecret } from './network-secret.js';
+import { trustedOrigin } from './origin-auth.js';
 
 const required = (name: string) => {
   const value = process.env[name];
@@ -42,6 +43,12 @@ const send = (id: string) =>
     }),
   );
 export async function apiHandler(event: APIGatewayProxyEventV2) {
+  if (!(await trustedOrigin(event.headers)))
+    return {
+      statusCode: 403,
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+      body: JSON.stringify({ error: 'forbidden' }),
+    };
   const headers = { ...event.headers, cookie: event.cookies?.join('; ') ?? event.headers.cookie };
   const body = event.isBase64Encoded
     ? Buffer.from(event.body ?? '', 'base64').toString('utf8')
@@ -65,6 +72,11 @@ export async function apiHandler(event: APIGatewayProxyEventV2) {
     body: result.body,
     ...(result.cookie ? { cookies: [result.cookie] } : {}),
   };
+}
+export async function originAuthorizerHandler(event: {
+  headers?: Record<string, string | undefined>;
+}) {
+  return { isAuthorized: await trustedOrigin(event.headers ?? {}) };
 }
 export async function dispatcherHandler(event: DynamoDBStreamEvent) {
   for (const record of event.Records) {

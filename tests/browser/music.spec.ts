@@ -62,7 +62,7 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test('music loads inside the tent, pauses with controls, repeats softly and has credits', async ({
+test('preloaded music plays inside the tent, pauses with controls, repeats softly and has credits', async ({
   page,
 }) => {
   const requests: string[] = [];
@@ -71,13 +71,15 @@ test('music loads inside the tent, pauses with controls, repeats softly and has 
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Enter the tent' })).toBeVisible();
+  expect(requests).toHaveLength(1);
+  await expect(page.locator('#background-music')).toHaveCount(0);
   await page.keyboard.press('ArrowLeft');
   await expect(page.locator('#background-music')).toHaveCount(1);
-  expect(requests).toHaveLength(0);
   await page.getByRole('button', { name: 'Enter the tent' }).click();
   await expect.poll(() => clock(page), { timeout: 12000 }).toBeGreaterThan(3);
   await expect.poll(() => gain(page)).toBeGreaterThan(0.14);
-  expect(requests.length).toBeGreaterThan(0);
+  expect(requests).toHaveLength(1);
   expect(
     await page.locator('#background-music').evaluate((a: HTMLAudioElement) => a.error),
   ).toBeNull();
@@ -179,7 +181,7 @@ test('music lowers during the orb and reader text, then returns after text is re
   await expect.poll(() => gain(page)).toBeGreaterThan(0.14);
 });
 
-test('muted entry and a slow music download do not block gameplay or pause/resume', async ({
+test('music finishes downloading before entry and respects mute and pause/resume', async ({
   page,
 }) => {
   let release!: () => void;
@@ -194,10 +196,14 @@ test('muted entry and a slow music download do not block gameplay or pause/resum
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
+  await expect.poll(() => requested).toBe(true);
+  await expect(page.locator('.asset-loading')).toBeVisible();
+  await expect(page.locator('#enter')).toHaveCount(0);
+  release();
   await page.getByRole('button', { name: 'Turn game sound off' }).click();
   await page.getByRole('button', { name: 'Enter the tent' }).click();
   await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
-  expect(requested).toBe(false);
+  expect(await clock(page)).toBe(0);
   await page.getByRole('button', { name: 'Turn game sound on' }).click();
   await expect.poll(() => requested).toBe(true);
   await page.getByRole('textbox', { name: 'Your question' }).fill('What could I learn?');

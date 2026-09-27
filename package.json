@@ -20,6 +20,7 @@
     "assets:scenes": "node scripts/import-scenes.mjs",
     "assets:check": "tsx scripts/validate-assets.mjs",
     "deploy:preflight": "node scripts/deploy-preflight.mjs",
+    "deploy:prepare-site": "tsx scripts/prepare-site.mjs",
     "format": "prettier --write \"{src,shared,server,infra,tests}/**/*.{ts,css}\" \"scripts/*.mjs\" \"*.{ts,json}\" \".github/workflows/*.yml\"",
     "format:check": "prettier --check \"{src,shared,server,infra,tests}/**/*.{ts,css}\" \"scripts/*.mjs\" \"*.{ts,json}\" \".github/workflows/*.yml\""
   },

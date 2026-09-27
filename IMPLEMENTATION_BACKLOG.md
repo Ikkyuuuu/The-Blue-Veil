@@ -5,8 +5,9 @@ The criteria below remain the release checklist. Current implementation status:
 - Implemented locally: cinematic scenes, selected generated 78-card deck, question/draw/result flow, separate candle flames, deletion/resume, reduced-motion controls, privacy/attribution copy and generated ambient sound.
 - Implemented in source: authoritative sessions/quota/draws, expiring content, idempotency, cancellation/refunds, queue worker, Bedrock/guardrail adapter and cost reservations.
 - Verified: engine/HTTP and infrastructure unit tests; build and public-file checks. Desktop/mobile browser checks are recorded in docs/VALIDATION.md.
-- AWS templates synthesize but are not deployed. The Thailand Function URL regional incompatibility requires a region decision or API redesign before deployment.
-- Not yet verified live: scoped deployment identity, Free-plan eligibility, OAC end-to-end behavior, Bedrock quality/retention/latency, alert delivery or cloud rollback.
+- Small AWS demo deployed through a scoped temporary CLI role in Thailand, with runtime permissions boundaries and an active CloudFront Free plan. HTTP API uses private origin-token authorization.
+- Verified live: private S3 delivery, direct-origin rejection, session cookies, CSRF/origin checks, forged-header replacement, uncached API responses, real DynamoDB quota contention and ownership checks, a queued Nova Micro reading with guardrails, reading navigation, and content deletion.
+- Still outstanding: broader live quality/safety evaluation, physical-device review, confirmed alert delivery, project-level billing attribution and a cloud rollback drill. Budget warnings are account-wide and do not impose a hard spending cap.
 
 A source implementation is not evidence that an AWS launch gate has passed.
 
@@ -15,8 +16,8 @@ A source implementation is not evidence that an AWS launch gate has passed.
 - Establish the scoped non-root CLI identity. Read the expected account ID from private configuration and assert it and the intended region before every deploy. Never silently fall back to a default profile.
 - Prepare for a public GitHub repository: preserve ignored private records, use placeholder-only configuration examples, review staged files/history and scan for secrets before the first push. Keep account identifiers and personal machine paths out of public documentation.
 - Record asset provenance/permissions, target repository, owner contact, beta URL and final deck rules. Use the CloudFront hostname until a domain is chosen.
-- Prepare an infrastructure change set for the CloudFront Free plan, private S3 and IAM Function URL. Verify plan eligibility/configuration through supported APIs. Do not subscribe to a paid fallback implicitly.
-- Prove API POST body hashing, cookie issuance/forwarding, same-origin checks, cache bypass and direct-origin denial with a minimal synthetic endpoint. Verify required security-header delivery and WAF rules fit the plan.
+- Prepare an infrastructure change set for the CloudFront Free plan, private S3 and authorized HTTP API. Verify regional capacity, plan eligibility/configuration and project deployment permissions through supported APIs. Do not subscribe to a paid fallback implicitly.
+- Prove origin-token rejection, cookie issuance/forwarding, same-origin checks, cache bypass and direct-origin denial with a minimal synthetic endpoint. Verify required security-header delivery and WAF rules fit the plan.
 - Test one scoped synthetic Nova Micro invocation and guardrail input/output calls, recording latency, usage, cost and exact model/API retention behavior. Profile discovery alone does not pass this gate.
 
 Exit: a priced, secure, working infrastructure path and a clear model/guardrail configuration, using no player data.

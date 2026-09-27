@@ -2,7 +2,9 @@ import { defineConfig, devices } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 export default defineConfig({
   testDir: 'tests/browser',
-  timeout: 45000,
+  // Every fresh page now downloads the complete media library before play.
+  timeout: 90000,
+  expect: { timeout: 15000 },
   use: { baseURL: 'http://localhost:5174', trace: 'retain-on-failure' },
   projects: [
     {

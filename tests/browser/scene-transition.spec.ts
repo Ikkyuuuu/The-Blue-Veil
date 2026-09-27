@@ -23,6 +23,9 @@ test('Space keeps curtains moving until their matching phase and through the ble
     await route.continue();
   });
   await page.goto('/');
+  await expect(page.locator('.asset-loading')).toBeVisible();
+  release();
+  await expect(page.locator('#enter')).toBeVisible();
   const entrance = page.locator('.entrance-scene');
   const video = page.locator('#entrance-video');
   const idle = page.locator('#exterior-video');
@@ -41,17 +44,7 @@ test('Space keeps curtains moving until their matching phase and through the ble
       scene.dataset.held = 'true';
     });
   });
-  const request = page.waitForRequest('**/assets/scenes/entrance-master.mp4*');
   await page.keyboard.press('Space');
-  await request;
-  await expect(page.locator('body')).toHaveAttribute('data-stage', 'outside');
-  await expect(entrance).toHaveCSS('opacity', '0');
-  await expect(page.locator('.exterior-scene')).toHaveCSS('opacity', '1');
-  const loadingTime = await idle.evaluate((v: HTMLVideoElement) => v.currentTime);
-  await expect
-    .poll(() => idle.evaluate((v: HTMLVideoElement) => v.currentTime))
-    .toBeGreaterThan(loadingTime + 0.08);
-  release();
   await expect(entrance).toHaveAttribute('data-held', 'true', { timeout: 12000 });
   expect(await video.evaluate((v: HTMLVideoElement) => v.readyState >= 2)).toBe(true);
   await expect(entrance).toHaveCSS('opacity', '0.5');
@@ -83,6 +76,7 @@ test('waiting for the next curtain cycle can be skipped without a late entrance'
   page,
 }) => {
   await page.goto('/');
+  await expect(page.locator('#enter')).toBeVisible();
   const idle = page.locator('#exterior-video');
   await expect.poll(() => idle.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0);
   await idle.evaluate((v: HTMLVideoElement) => (v.currentTime = 6));
@@ -110,10 +104,14 @@ for (const finish of ['ended', 'skip'] as const) {
     await page.addInitScript(() => {
       HTMLMediaElement.prototype.play = async function () {};
     });
-    await page.route('**/assets/scenes/*.mp4*', (route) =>
-      route.request().url().includes('/entrance-master.mp4') ? route.continue() : route.abort(),
-    );
     await page.goto('/');
+    // Files must now load before boot. Simulate an unavailable idle decoder
+    // after boot instead of aborting its required download. This skips phase
+    // matching so the frozen-video fixture can test only the final fade.
+    await expect(page.locator('#enter')).toBeVisible();
+    await page.locator('#exterior-video').evaluate((video) => {
+      Object.defineProperty(video, 'videoWidth', { value: 0 });
+    });
     await page.getByRole('button', { name: 'Enter the tent' }).click();
     const entrance = page.locator('.entrance-scene');
     await expect(entrance).toHaveCSS('opacity', '1');

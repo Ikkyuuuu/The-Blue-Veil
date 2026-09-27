@@ -45,6 +45,9 @@ varying vec2 uv;
 uniform sampler2D baseTexture;
 uniform sampler2D motionTexture;
 uniform sampler2D previousMotionTexture;
+uniform sampler2D blurredTexture;
+uniform sampler2D tentMask;
+uniform float tentBlurAmount;
 uniform float sourceBlend;
 uniform float motionMix;
 uniform bool interiorMask;
@@ -68,7 +71,7 @@ float litCandle(vec2 coord, vec3 light) {
   return light.z * (1.0 - smoothstep(0.85, 1.0, max(delta.x, delta.y)));
 }
 
-vec3 scene(vec2 coord) {
+vec3 originalScene(vec2 coord) {
   vec3 base = texture2D(baseTexture, coord).rgb;
   vec3 motion = texture2D(motionTexture, coord).rgb;
   if (sourceBlend < 1.0) {
@@ -86,6 +89,13 @@ vec3 scene(vec2 coord) {
     amount *= 1.0 - spent * (1.0 - lit);
   }
   return mix(base, motion, amount);
+}
+
+vec3 scene(vec2 coord) {
+  vec3 color = originalScene(coord);
+  if (tentBlurAmount <= 0.0) return color;
+  float amount = tentBlurAmount * texture2D(tentMask, coord).a;
+  return mix(color, texture2D(blurredTexture, coord).rgb, amount);
 }
 
 float edge(vec2 coord) {

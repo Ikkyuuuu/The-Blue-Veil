@@ -1,3 +1,4 @@
+import { assetUrl } from './assets';
 import type { Card } from '../shared/cards';
 import frames from './card-frames.json';
 
@@ -21,7 +22,7 @@ export function createCardArt(card: Card, reversed: boolean, alt: string, lazy =
   const image = document.createElement('img');
   image.loading = lazy ? 'lazy' : 'eager';
   image.decoding = 'async';
-  image.src = card.image;
+  image.src = assetUrl(card.image);
   image.alt = alt;
   image.draggable = false;
   image.classList.toggle('reversed', reversed);

@@ -15,11 +15,11 @@ Setup, runtime behavior, validation and deployment notes for The Blue Veil. For 
 - Every face uses the same 128:180 display proportions on the table, during flips, in the reading focus and in the gallery. Per-card outline masks hide the background outside each decorative frame and remove unequal image padding. Enclosed dark artwork and title panels remain visible; original image files are unchanged. Aura shadows follow the masked outline.
 - Shared server-authoritative rules for local development and AWS: anonymous sessions, CSRF checks, ownership, atomic quotas, distinct random draws, idempotency, resume, cancellation, expiry, one-time failure refunds and bounded generation attempts.
 - Local sample readings by default. The AWS adapter targets Bedrock Nova Micro and requires a versioned guardrail; live model invocation and quality remain unvalidated.
-- CDK stacks for private S3, CloudFront/WAF Free plan, IAM Function URL, DynamoDB, outbox/stream dispatcher, SQS worker and cleanup/reconciliation.
+- CDK stacks for private S3, CloudFront/WAF Free plan, authorized HTTP API, DynamoDB, outbox/stream dispatcher, SQS worker and cleanup/reconciliation.
 
 The game has not been deployed to AWS by this implementation. Model invocation quality, actual regional permissions, edge-plan eligibility and operational alerts still need live validation. The default cloud template leaves generation off.
 
-The original Thailand backend region also lacks the Function URL CloudFormation resource this design needs. A Singapore deployment or a Thailand API redesign must be chosen before cloud deployment; see the region gate in the deployment guide.
+The owner selected Thailand. The templates now use HTTP API and private origin-token authorization because Lambda Function URLs are unavailable there. Regional capacity, scoped deployment permissions and live security/model checks remain deployment gates; see the deployment guide.
 
 ## Run locally
 
@@ -55,6 +55,10 @@ The current settings are pixel size **1**, dither strength **0.52**, Acid palett
 Scene rendering follows `requestVideoFrameCallback` so the hidden source videos deliver their full 24 fps instead of relying on throttled playback-quality counters. Older browsers use a bounded animation-frame fallback. Paused and hidden pages stop scheduling scene frames; candle transitions can redraw without uploading the same video texture again.
 
 At video loop boundaries or while the next clip loads, the renderer retains the last valid video frame instead of flashing the still image. The idle and reading clips blend over 650 ms after the incoming frame is ready, before applying the shared pixel effect. Pausing also pauses that blend; reduced motion deliberately uses the lit still. Original video files and their quality remain unchanged.
+
+## Asset loading
+
+Startup downloads the complete runtime library (about 158 MiB) before enabling play: all 78 faces, the back, four original videos, scene stills, font, and music. The exterior movie downloads first and plays through the same pixel renderer used by the game, with a silhouette-shaped blur over only the tent. The GPU softens the original texture in two small separable passes before the shared palette, dithering, and edge effect, so the blur also has the game's pixel texture. This reuses the uploaded movie frame and adds no second decoder or CPU video-frame copies. Trees and circus stay clear. There is no added camera drift or zoom. Loading shows actual completed-file and byte progress; reduced motion uses a still. When entry becomes available, the game adopts the running video and existing canvas without seeking, changing the crop, or recreating the graphics context; only the tent blur fades away. Its temporary GPU targets are then released. CSS blur remains only as the no-WebGL fallback. Failed downloads expose a retry that keeps successful files. Compressed media stays in page-lifetime Blob URLs so later scenes, cards, and music need no additional media requests; the normal HTTP cache can help subsequent visits. This is an up-front download, not an offline game: readings still require the API. The same runtime allowlist drives startup and deployment. No player content is cached by the loader.
 
 ## Card artwork and public source
 

@@ -1,0 +1,124 @@
+.asset-loading {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #ede7ff;
+  background: #0c0817;
+  text-align: center;
+}
+.loading-forest {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  container-type: size;
+  isolation: isolate;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 800ms ease;
+}
+.loading-forest > .scene-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  visibility: hidden;
+}
+.loading-forest.pixel-ready > .pixel-scene,
+.loading-forest.pixel-fallback > .scene-image:not(canvas) {
+  visibility: visible;
+}
+.loading-forest.visible {
+  opacity: 1;
+}
+.loading-tent-veil {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100cqw, calc(100cqh * var(--scene-aspect)));
+  height: max(100cqh, calc(100cqw / var(--scene-aspect)));
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+.pixel-ready > .loading-tent-veil {
+  /* The GPU softens the source before applying the pixel effect. */
+  visibility: hidden;
+}
+.loading-shade {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, #0c081744, transparent 65%);
+}
+.loading-content {
+  position: relative;
+  width: min(100%, 430px);
+  text-shadow: 0 2px 4px #080512;
+}
+.loading-reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #0c0817;
+  pointer-events: none;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-forest {
+    transition: none;
+  }
+}
+.loading-content h1 {
+  font-size: clamp(32px, 6vw, 48px);
+  font-weight: 400;
+  margin: 24px 0;
+}
+.loading-content p {
+  font-size: 22px;
+  line-height: 1.3;
+}
+.loading-content .loading-note {
+  color: #a59ab8;
+  font-size: 18px;
+}
+.loading-content progress {
+  display: block;
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  border: 1px solid #afa1cb;
+  border-radius: 0;
+  background: #21182f;
+}
+.loading-content progress::-webkit-progress-bar {
+  background: #21182f;
+}
+.loading-content progress::-webkit-progress-value {
+  background: #99c8f4;
+}
+.loading-content progress::-moz-progress-bar {
+  background: #99c8f4;
+}
+.loading-content button {
+  padding: 10px 24px;
+  border: 1px solid #ede7ff;
+  background: #21182f;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.loading-orb {
+  width: 32px;
+  height: 32px;
+  margin: auto;
+  background: #99c8f4;
+  box-shadow:
+    0 0 0 6px #324677,
+    0 0 0 10px #1a203b;
+}

@@ -145,9 +145,15 @@ Open [localhost:5173](http://localhost:5173/). Local state and its network key s
 
 ## AWS backend
 
-The prepared backend uses **CloudFront and private S3** for delivery, **Lambda** for the API, **DynamoDB** for sessions and quotas, and **SQS workers with Amazon Bedrock** for readings. The initial model candidate is **Amazon Nova Micro** (`us.amazon.nova-micro-v1:0`), with a versioned guardrail.
+The live game uses **CloudFront and private S3** for delivery, an **API Gateway HTTP API and Lambda** in **Thailand (`ap-southeast-7`)**, and **Amazon Nova Micro** through Bedrock's US inference profile (`us.amazon.nova-micro-v1:0`). Versioned Bedrock Guardrails check both questions and generated interpretations. Local development uses sample readings.
 
-**AWS deployment and live model validation are still pending.** The templates leave generation disabled by default, and the deployment-region decision must be resolved before launch. The local game currently works with sample interpretations.
+<a href="docs/images/aws-architecture.svg">
+  <img src="docs/images/aws-architecture.svg" width="100%" alt="The Blue Veil AWS architecture: CloudFront and WAF serve the browser from private S3 and route API requests to Thailand. API Gateway and Lambda use DynamoDB, a transactional outbox, DynamoDB Streams, a dispatcher and SQS to queue readings. A Lambda worker calls Bedrock Nova Micro with input and output guardrails through a US inference profile, saves the result, and the browser polls for completion. Recovery, secrets, monitoring and budget controls support the flow.">
+</a>
+
+[Open the full-size architecture diagram](docs/images/aws-architecture.svg).
+
+When the third card is drawn, the API writes a **DynamoDB transactional outbox** record. A stream-triggered dispatcher sends the reading ID to **SQS**, and a worker generates and validates the interpretation before saving it in DynamoDB. The browser polls the API while the orb animation plays. A scheduled reconciler recovers pending work and removes expired content; a dead-letter queue retains failed jobs for review.
 
 Anonymous abuse limits use daily secret-keyed network identifiers, encrypted DynamoDB storage in AWS, and a server-only Secrets Manager key. Raw IP and MAC addresses are not saved in the game database. VPNs or changing networks can bypass the network allowance; reading ownership remains private to each browser session.
 
