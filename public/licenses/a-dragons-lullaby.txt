@@ -10,4 +10,4 @@ Composer's usage information: https://www.scottbuckley.com.au/library/using-this
 The original MP3 is included unchanged as music accompanying The Blue Veil game.
 The game applies volume changes, dialogue/orb ducking and gentle fades at the
 repeat boundary during playback. This music remains under its own license;
-it is not covered by any future license chosen for this game's source code.
+it is not covered by the MIT license for this game's source code.

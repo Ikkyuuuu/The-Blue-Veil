@@ -155,4 +155,4 @@ The AWS planning target is **US$10/month**, not a guaranteed bill or hard spendi
 - [Security](SECURITY.md) and [network limits](docs/NETWORK_LIMITS.md) — protections, privacy, and anonymous-play tradeoffs.
 - [Game plan](GAME_PLAN.md) and [implementation backlog](IMPLEMENTATION_BACKLOG.md) — design and upcoming work.
 
-A software license has not yet been selected. Third-party assets retain their own licenses; public source visibility does not grant permission to redistribute the purchased card pack.
+The source code is available under the [MIT license](LICENSE). Third-party assets retain their own licenses. The private generated card pack and purchased card artwork are not included in that license or this repository.

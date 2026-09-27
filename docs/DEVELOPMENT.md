@@ -87,4 +87,4 @@ The proposed budget is a target, not a hard account-wide cap. Clearing cookies d
 
 See [SECURITY.md](../SECURITY.md). Real questions/answers are only accessible for 24 hours, then removed by cleanup/TTL; deletion retains minimal quota state. Logs and queue messages must not contain player content. Browser identity uses an HttpOnly cookie. Daily network checks store HMAC identifiers, not raw IPs or device fingerprints, with DynamoDB encryption at rest. The live UI discloses shared-network limits, retention, cross-border AI processing and its reflective, non-predictive purpose.
 
-This project is not yet assigned an open-source license. Public visibility alone does not grant redistribution rights to the paid card art.
+The source code uses the repository's [MIT license](../LICENSE). Third-party assets retain their separate terms; the private generated card pack and purchased card artwork are not included in the source-code license or repository.

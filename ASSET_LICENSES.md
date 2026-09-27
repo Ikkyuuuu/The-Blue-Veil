@@ -32,7 +32,7 @@ The self-hosted original is unchanged: `public/assets/music/a-dragons-lullaby-20
 
 ## Code-created elements
 
-The favicon, interface decoration, particle effects and synthesized sound effects are created for this project. No third-party font or icon service is contacted at runtime. Selecting a software/asset license for the public repository remains an owner decision.
+The favicon, interface decoration, particle effects and synthesized sound effects are created for this project. No third-party font or icon service is contacted at runtime. The source code uses the repository's [MIT license](LICENSE). Third-party assets retain the separate licenses listed here; the private generated card pack and purchased card artwork are excluded from the source-code license.
 
 ## Interface icon and font
 
