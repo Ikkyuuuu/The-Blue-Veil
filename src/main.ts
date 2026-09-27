@@ -6,6 +6,7 @@ import { Sound } from './audio';
 import { createPixelScenes } from './pixel-scenes';
 import { createCardMotion } from './card-motion';
 import { createCardFocus } from './card-focus';
+import { prepareEntrance } from './entrance';
 
 const speaker =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h5l5-5v16l-5-5H3zM17 8v8m4-11v14"/></svg>';
@@ -58,6 +59,8 @@ let lines: Line[] = [],
   renderedCards = '';
 let pendingSubmit: { question: string; id: string } | undefined,
   pendingDraw: { index: number; id: string } | undefined;
+let entranceBlending = false;
+let entranceAnimations: Animation[] = [];
 let pollTimer: ReturnType<typeof setTimeout> | undefined,
   resetTimer: ReturnType<typeof setTimeout> | undefined,
   typeTimer: ReturnType<typeof setInterval> | undefined,
@@ -74,7 +77,7 @@ function visibility() {
   for (const video of videos) {
     const active =
       (stage === 'outside' && video.id === 'exterior-video') ||
-      (stage === 'entering' && video.id === 'entrance-video') ||
+      (stage === 'entering' && !entranceBlending && video.id === 'entrance-video') ||
       (['asking', 'drawing', 'result', 'limit'].includes(stage) && video.id === 'interior-video') ||
       (stage === 'pending' && video.id === 'reading-video');
     if (active && !paused && !reduced.matches) void video.play().catch(() => undefined);
@@ -84,6 +87,12 @@ function visibility() {
   pixelScenes.update(stage, paused, reduced.matches);
   cardMotion.update(paused, reduced.matches);
   cardFocus.update(paused);
+  if (stage === 'entering')
+    for (const animation of entranceAnimations) {
+      if (reduced.matches) animation.finish();
+      else if (paused) animation.pause();
+      else animation.play();
+    }
 }
 function setStage(next: Stage) {
   cardFocus.show();
@@ -407,9 +416,33 @@ async function enter() {
       await completeEntry();
       return;
     }
-    setStage('entering');
     const video = $<HTMLVideoElement>('entrance-video');
-    video.currentTime = 0;
+    try {
+      // Keep the live exterior on screen until a clear walking frame is decoded.
+      await prepareEntrance(video);
+    } catch {
+      await completeEntry();
+      return;
+    }
+    if (reduced.matches) {
+      await completeEntry();
+      return;
+    }
+    entranceBlending = true;
+    setStage('entering');
+    // Hold both images still during the dissolve; only begin walking once the
+    // entrance has fully replaced the exact exterior frame the player saw.
+    entranceAnimations = document.querySelector('.entrance-scene')!.getAnimations();
+    visibility();
+    await Promise.all(entranceAnimations.map((animation) => animation.finished)).catch(() => {});
+    entranceAnimations = [];
+    entranceBlending = false;
+    if ((stage as Stage) !== 'entering') return;
+    if (reduced.matches) {
+      await completeEntry();
+      return;
+    }
+    visibility();
     await video.play().catch(() => completeEntry());
     setTimeout(() => {
       if (stage === 'entering') void completeEntry();
