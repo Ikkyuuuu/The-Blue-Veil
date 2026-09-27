@@ -68,7 +68,7 @@ The allowance resets at **midnight in Bangkok**. There are three questions per b
 The rich pixel-art atmosphere: detailed little spaces, expressive lighting, and enough movement to make a scene feel alive. That influence carries into the tent's colors and the small details around the table.
 
 <a href="https://store.steampowered.com/app/1868140/DAVE_THE_DIVER/">
-  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1868140/890058df24a6b0c8a768ef2573a700c00ff67463/capsule_616x353.jpg?t=1789456375" width="460" alt="DAVE THE DIVER — promotional artwork, linked to its Steam page">
+  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1868140/890058df24a6b0c8a768ef2573a700c00ff67463/capsule_616x353.jpg?t=1789456375" width="100%" alt="DAVE THE DIVER — promotional artwork, linked to its Steam page">
 </a>
 
 ### Undertale
@@ -76,7 +76,7 @@ The rich pixel-art atmosphere: detailed little spaces, expressive lighting, and 
 The rhythm of dialogue and those little voice blips that give written words a personality. The hooded reader speaks through text and original synthesized sounds, letting the pauses do some of the acting.
 
 <a href="https://store.steampowered.com/app/391540/Undertale/">
-  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/391540/capsule_616x353.jpg?t=1757349115" width="460" alt="Undertale — promotional artwork, linked to its Steam page">
+  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/391540/capsule_616x353.jpg?t=1757349115" width="100%" alt="Undertale — promotional artwork, linked to its Steam page">
 </a>
 
 ### Balatro
@@ -84,7 +84,7 @@ The rhythm of dialogue and those little voice blips that give written words a pe
 The satisfying movement of cards: how a small lift, slide, turn, or landing can make a simple action feel good. That attention to motion inspired the deck, draws, and card inspection.
 
 <a href="https://store.steampowered.com/app/2379780/Balatro/">
-  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/2379780/3969126b54880055996297d922a5ccc9c976a671/capsule_616x353.jpg?t=1788961800" width="460" alt="Balatro — promotional artwork, linked to its Steam page">
+  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/2379780/3969126b54880055996297d922a5ccc9c976a671/capsule_616x353.jpg?t=1788961800" width="100%" alt="Balatro — promotional artwork, linked to its Steam page">
 </a>
 
 ### Papers, Please
@@ -92,7 +92,7 @@ The satisfying movement of cards: how a small lift, slide, turn, or landing can 
 The viewpoint from one side of a desk, with a character facing you and the important objects within reach. The Blue Veil uses that intimate table perspective to keep your attention on the reader, the orb, and the cards.
 
 <a href="https://store.steampowered.com/app/239030/Papers_Please/">
-  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/239030/capsule_616x353.jpg?t=1678266428" width="460" alt="Papers, Please — promotional artwork, linked to its Steam page">
+  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/239030/capsule_616x353.jpg?t=1678266428" width="100%" alt="Papers, Please — promotional artwork, linked to its Steam page">
 </a>
 
 ### The Quarry
@@ -100,7 +100,7 @@ The viewpoint from one side of a desk, with a character facing you and the impor
 The encounters with the fortune teller, Eliza, and the uneasy feeling of having someone read your tarot cards. That mysterious pause between revealing a card and hearing what it means helped shape the reader and the orb ritual.
 
 <a href="https://store.steampowered.com/app/1577120/The_Quarry/">
-  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1577120/header.jpg?t=1730303267" width="460" alt="The Quarry — promotional artwork, linked to its Steam page">
+  <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1577120/header.jpg?t=1730303267" width="100%" alt="The Quarry — promotional artwork, linked to its Steam page">
 </a>
 
 The promotional images above link to their respective games and belong to their respective rights holders.
