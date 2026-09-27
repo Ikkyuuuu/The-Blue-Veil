@@ -40,7 +40,7 @@ export class Sound {
   private paused = false;
   private lastVoice = -Infinity;
   private voices = new Set<ReturnType<typeof readerBlip>>();
-  muted = true;
+  muted = false;
 
   private initialize() {
     if (this.ctx) return;
@@ -60,18 +60,34 @@ export class Sound {
     }
   }
 
+  private applyVolume() {
+    if (!this.ctx || !this.master) return;
+    const now = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(now);
+    this.master.gain.setTargetAtTime(this.muted || this.paused ? 0 : 1, now, 0.01);
+  }
+
+  // Called inside a user gesture, including when returning to a saved reading.
+  async activate() {
+    if (this.muted || this.paused || this.ctx?.state === 'running') return;
+    this.initialize();
+    await this.ctx!.resume();
+    // The player may have muted or paused while the browser was resuming audio.
+    this.applyVolume();
+  }
+
   async toggle() {
-    if (this.muted) {
-      this.initialize();
-      if (!this.paused) await this.ctx!.resume();
-      this.muted = false;
-    } else {
-      this.muted = true;
-      this.stopVoice();
+    this.muted = !this.muted;
+    if (this.muted) this.stopVoice();
+    else {
+      try {
+        await this.activate();
+      } catch (error) {
+        this.muted = true;
+        throw error;
+      }
     }
-    const now = this.ctx!.currentTime;
-    this.master!.gain.cancelScheduledValues(now);
-    this.master!.gain.setTargetAtTime(this.muted ? 0 : 1, now, 0.01);
+    this.applyVolume();
     return !this.muted;
   }
 
@@ -123,6 +139,7 @@ export class Sound {
   visibility(hidden: boolean) {
     this.paused = hidden;
     if (hidden) this.stopVoice(true);
+    this.applyVolume();
     if (this.ctx)
       void (hidden || this.muted ? this.ctx.suspend() : this.ctx.resume()).catch(() => {});
   }

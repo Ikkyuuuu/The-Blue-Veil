@@ -1,6 +1,6 @@
 # Scene preparation
 
-The owner-provided four full-length loop masters are used for outside, entering, reader idle and the reading orb. Entry plays once; the other clips repeat. `npm run assets:scenes -- "path to Tarot_Game_Loops"` imports them as `*-master.mp4` using stream copy: audio/metadata are stripped without re-encoding video pixels. Ambient sound/chimes are synthesized locally after the player opts in.
+The owner-provided four full-length loop masters are used for outside, entering, reader idle and the reading orb. Entry plays once; the other clips repeat. `npm run assets:scenes -- "path to Tarot_Game_Loops"` imports them as `*-master.mp4` using stream copy: audio/metadata are stripped without re-encoding video pixels. Ambient sound/chimes are synthesized locally, enabled by default and activated on the player's first click or keypress. The speaker control can mute them.
 
 The built-in image-generation tool produced the independent-candle base at `public/assets/scenes/interior-unlit.png`. The source original was left intact. The live shader preserves the full original footage, including candle flames, wax highlights and halos. Only spent candles reveal feathered regions of the unlit plate, with nearby lit flames protected from overlap. This composition happens before palette mapping, dithering and edge detection. Reduced motion uses the original `interior.jpg` with the same candle states. The earlier central mask and CSS flames remain only as the fallback when WebGL is unavailable.
 

@@ -13,9 +13,7 @@ async function expectQuiet(page: Page) {
   expect(counts[1]).toBe(counts[0]);
 }
 
-test('reader blips follow dialogue and respect mute, pause, skip and reduced motion', async ({
-  page,
-}) => {
+test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     // Keep the real Web Audio graph; observe voice starts without replacing synthesis.
     const probe: AudioProbe = { voices: 0 };
@@ -40,14 +38,28 @@ test('reader blips follow dialogue and respect mute, pause, skip and reduced mot
     // Scene playback is tested separately; leave only dialogue animated here.
     HTMLMediaElement.prototype.play = async function () {};
   });
+});
+
+test('sound starts on entry and reader blips respect mute, pause, skip and reduced motion', async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Turn game sound off' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  expect(await page.evaluate(() => (window as AudioWindow).audioProbe.context)).toBeUndefined();
   await page.getByRole('button', { name: 'Enter the tent' }).click();
   expect(await voiceCount(page)).toBe(0);
-  await page.getByRole('button', { name: 'Turn game sound on' }).click();
-  await expect(page.locator('#sound')).toHaveAttribute('aria-pressed', 'true');
+  await expect
+    .poll(() => page.evaluate(() => (window as AudioWindow).audioProbe.context?.state))
+    .toBe('running');
+  await expect
+    .poll(() => page.evaluate(() => (window as AudioWindow).audioProbe.master?.gain.value))
+    .toBeGreaterThan(0.9);
   await page
     .getByRole('textbox', { name: 'Your question' })
     .fill('What can I learn from a creative project?');
@@ -90,4 +102,38 @@ test('reader blips follow dialogue and respect mute, pause, skip and reduced mot
   await expectQuiet(page);
   expect(await voiceCount(page)).toBe(beforeReduced);
   expect(errors).toEqual([]);
+});
+
+test('keyboard entry starts sound and muting before entry prevents automatic playback', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => (window as AudioWindow).audioProbe.context?.state))
+    .toBe('running');
+
+  // A resumed reading also waits for a gesture instead of starting audio on load.
+  await page.reload();
+  await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
+  expect(await page.evaluate(() => (window as AudioWindow).audioProbe.context)).toBeUndefined();
+  await page.getByRole('textbox', { name: 'Your question' }).click();
+  await expect
+    .poll(() => page.evaluate(() => (window as AudioWindow).audioProbe.context?.state))
+    .toBe('running');
+
+  await page.evaluate(() => sessionStorage.removeItem('blue-veil-entered'));
+  await page.reload();
+  await page.getByRole('button', { name: 'Turn game sound off' }).click();
+  await expect(page.locator('#sound')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Enter the tent' }).click();
+  await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Your question' }).press('a');
+  expect(await page.evaluate(() => (window as AudioWindow).audioProbe.context)).toBeUndefined();
+  await page.getByRole('button', { name: 'Turn game sound on' }).click();
+  await expect
+    .poll(() => page.evaluate(() => (window as AudioWindow).audioProbe.context?.state))
+    .toBe('running');
 });
