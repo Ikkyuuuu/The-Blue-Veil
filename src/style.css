@@ -137,9 +137,13 @@ a {
 }
 body:not([data-stage='outside']):not([data-stage='entering']) .exterior-scene {
   opacity: 0;
+  /* Retire the wide exterior immediately; it must not show through the walk. */
+  transition: none;
 }
 body:not([data-stage='outside']):not([data-stage='entering']) .interior-scene {
   opacity: 1;
+  /* The outgoing entrance supplies the two-second fade over this opaque scene. */
+  transition: none;
 }
 body[data-stage='entering'] .entrance-scene {
   opacity: 1;
