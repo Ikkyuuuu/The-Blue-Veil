@@ -1,5 +1,13 @@
 # Validation
 
+## Fullscreen entry and controls — 28 September 2026
+
+- Space or tapping Enter requests fullscreen directly from the gesture, alongside the existing responsive walk. Already-fullscreen entry does not toggle it off. Blocked or unsupported fullscreen leaves the game playable with a clear message.
+- F11 received by the page uses the same fullscreen mode as the toolbar. Browser-owned fullscreen is tracked separately through the display-mode media query; its exit hint preserves native F11 instead of nesting a second mode. Escape remains available.
+- Fourteen focused Chromium cases passed across desktop and mobile emulation: real fullscreen activation and exit, F11/button synchronization, already-fullscreen entry, emulated browser-owned mode, rejected/unsupported requests, text input, and responsive walking with a held session response. An initial fallback-test fixture accessed the document element before it existed; the corrected prototype fixture passed.
+- Production build/typecheck, changed-file formatting, diff and public-candidate/history checks passed. Physical browser-shortcut behavior across operating systems and Safari remains a manual follow-up.
+- Live verification passed after publishing and cache refresh: Space entered fullscreen and started the real walk; F11 and the toolbar could enter/exit again. The live network allowance was already exhausted and remained unchanged. No paid readings or browser errors occurred.
+
 ## Responsive tent entry — 28 September 2026
 
 - The first Space press or tap is acknowledged immediately. The walking clip is prepared while the entrance prompt is visible, and session creation runs alongside the walk. Questions stay unavailable until the session is ready; connection failures offer Reconnect inside the tent.

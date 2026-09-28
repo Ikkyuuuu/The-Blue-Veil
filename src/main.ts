@@ -60,6 +60,7 @@ const exteriorScene = loading.adopt(document.querySelector<HTMLElement>('.exteri
 const client = new Client(),
   sound = new Sound();
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+const fullscreenDisplay = window.matchMedia('(display-mode: fullscreen)');
 const menu = $<HTMLDialogElement>('menu-dialog'),
   info = $<HTMLDialogElement>('info-dialog');
 type Stage = 'outside' | 'entering' | 'asking' | 'drawing' | 'pending' | 'result' | 'limit';
@@ -487,6 +488,9 @@ async function reconnect() {
 }
 async function enter() {
   if (busy || entranceRequest || stage !== 'outside') return;
+  // Fullscreen needs the original key/click gesture, before any network or
+  // video await. Request it without delaying the entrance or trapping Escape.
+  void enterFullscreen();
   $('enter').hidden = true;
   $('entry-status').hidden = false;
   $('skip-entry').hidden = false;
@@ -752,21 +756,46 @@ $('sound').addEventListener('click', async () => {
   }
 });
 function syncFullscreen() {
-  const active = Boolean(document.fullscreenElement);
-  const label = active ? 'Exit fullscreen' : 'Enter fullscreen';
+  const active = Boolean(document.fullscreenElement) || fullscreenDisplay.matches;
+  const label = browserFullscreen()
+    ? 'Exit fullscreen with F11'
+    : active
+      ? 'Exit fullscreen'
+      : 'Enter fullscreen';
   $('fullscreen-toggle').setAttribute('aria-label', label);
   $('fullscreen-toggle').setAttribute('title', label);
   $('fullscreen-toggle').setAttribute('aria-pressed', String(active));
   $('fullscreen-glyph').setAttribute('d', active ? fullscreenPaths.exit : fullscreenPaths.enter);
-  $('fullscreen').textContent = active ? 'Exit fullscreen' : 'Fullscreen';
+  $('fullscreen').textContent = active ? label : 'Fullscreen';
+}
+function browserFullscreen() {
+  // F11/browser-menu fullscreen has no fullscreenElement and cannot be exited
+  // through document.exitFullscreen(). Do not stack another fullscreen on it.
+  return fullscreenDisplay.matches && !document.fullscreenElement;
+}
+async function enterFullscreen() {
+  if (document.fullscreenElement || browserFullscreen()) return;
+  try {
+    if (!document.fullscreenEnabled || !document.documentElement.requestFullscreen) {
+      toast('Fullscreen is unavailable here. You can keep playing in this window.');
+      return;
+    }
+    await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+  } catch {
+    toast('Fullscreen was blocked. Use the fullscreen button to try again.');
+  } finally {
+    syncFullscreen();
+  }
 }
 async function toggleFullscreen() {
   const controls = [$<HTMLButtonElement>('fullscreen-toggle'), $<HTMLButtonElement>('fullscreen')];
+  if (controls.some((button) => button.disabled)) return;
   controls.forEach((button) => (button.disabled = true));
   menu.close();
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
-    else await document.documentElement.requestFullscreen();
+    else if (browserFullscreen()) toast('Press F11 to exit browser fullscreen.');
+    else await enterFullscreen();
   } catch {
     toast('Fullscreen is unavailable here.');
   } finally {
@@ -777,6 +806,7 @@ async function toggleFullscreen() {
 $('fullscreen-toggle').addEventListener('click', () => void toggleFullscreen());
 $('fullscreen').addEventListener('click', () => void toggleFullscreen());
 document.addEventListener('fullscreenchange', syncFullscreen);
+fullscreenDisplay.addEventListener('change', syncFullscreen);
 syncFullscreen();
 $('about-privacy').addEventListener('click', () =>
   showInfo(
@@ -805,6 +835,15 @@ $('about-deck').addEventListener('click', () => {
   $('deck-filters').querySelector<HTMLButtonElement>('button')!.click();
 });
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'F11' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    // Use the same mode as the toolbar when this shortcut reaches the game.
+    // Leave browser-owned fullscreen (and unsupported browsers) to native F11.
+    if (!browserFullscreen() && document.fullscreenEnabled) {
+      event.preventDefault();
+      if (!event.repeat) void toggleFullscreen();
+    }
+    return;
+  }
   if (event.key === 'Escape') {
     if (!menu.open && !info.open) {
       event.preventDefault();
