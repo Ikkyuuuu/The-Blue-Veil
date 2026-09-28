@@ -154,7 +154,8 @@
     width: 34px;
     height: 34px;
   }
-  #enter {
+  #enter,
+  #entry-status {
     font-size: 25px;
     top: 80%;
     letter-spacing: 1px;
@@ -335,7 +336,8 @@
   #result-choices {
     bottom: 0;
   }
-  #enter {
+  #enter,
+  #entry-status {
     font-size: 24px;
   }
 }

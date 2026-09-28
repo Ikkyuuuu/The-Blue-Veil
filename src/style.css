@@ -141,7 +141,7 @@ body:not([data-stage='outside']):not([data-stage='entering']) .interior-scene {
 }
 body[data-stage='entering'] .entrance-scene {
   opacity: 1;
-  transition-duration: 0.25s;
+  transition-duration: var(--entry-blend-duration, 0.25s);
 }
 body[data-stage='pending'] .reading-video {
   opacity: 1;
@@ -187,7 +187,8 @@ body[data-stage='pending'] .reading-video {
   position: absolute;
   inset: 0;
 }
-#enter {
+#enter,
+#entry-status {
   position: absolute;
   left: 50%;
   top: 83%;
@@ -200,6 +201,11 @@ body[data-stage='pending'] .reading-video {
   color: #c8e6ff;
   text-shadow: 3px 3px #050310;
   animation: prompt 2.8s steps(2, end) infinite;
+}
+#entry-status {
+  margin: 0;
+  animation: none;
+  pointer-events: none;
 }
 #enter:hover {
   color: #fff;

@@ -39,7 +39,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="vignette"></div><div class="motes">${Array.from({ length: 9 }, (_, i) => `<i style="--n:${i}"></i>`).join('')}</div>
   </div>
   <div class="game-controls"><a id="github-link" class="icon-button" href="https://github.com/Ikkyuuuu/The-Blue-Veil" target="_blank" rel="noopener noreferrer" aria-label="The Blue Veil on GitHub (opens in a new tab)" title="View on GitHub · opens in a new tab">${github}</a><button id="sound" class="icon-button" aria-label="Turn game sound off" aria-pressed="true" title="Sound · dialogue, ambience and cards">${speaker}</button><button id="fullscreen-toggle" class="icon-button" aria-label="Enter fullscreen" aria-pressed="false" title="Enter fullscreen"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fullscreen-glyph" d="${fullscreenPaths.enter}"/></svg></button><button id="menu-toggle" class="icon-button" aria-label="Open game menu" title="Menu · Esc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M17 4v16"/></svg></button></div>
-  <section id="outside" aria-label="Outside the tent"><button id="enter" aria-label="Enter the tent"><span class="desktop-prompt">PRESS SPACE TO ENTER</span><span class="touch-prompt">TAP TO ENTER</span></button></section>
+  <section id="outside" aria-label="Outside the tent"><button id="enter" aria-label="Enter the tent"><span class="desktop-prompt">PRESS SPACE TO ENTER</span><span class="touch-prompt">TAP TO ENTER</span></button><p id="entry-status" role="status" hidden>The curtain stirs…</p></section>
   <button id="skip-entry" class="quiet-action" aria-label="Skip the walk" hidden>SKIP ▸</button>
   <section id="inside" aria-label="Your tarot reading" hidden>
     <div id="card-focus" aria-hidden="true"></div>
@@ -79,6 +79,7 @@ let pendingSubmit: { question: string; id: string } | undefined,
 let entranceBlending = false;
 let entranceAnimations: Animation[] = [];
 let entranceRequest: AbortController | undefined;
+let entranceSession: Promise<{ ok: true } | { ok: false; error: unknown }> | undefined;
 let completingReading: string | undefined;
 let pollTimer: ReturnType<typeof setTimeout> | undefined,
   resetTimer: ReturnType<typeof setTimeout> | undefined,
@@ -88,6 +89,15 @@ const videos = ['exterior-video', 'interior-video', 'reading-video', 'entrance-v
   $<HTMLVideoElement>(id),
 );
 const pixelScenes = createPixelScenes(exteriorScene);
+// Decode the already-downloaded walking clip while the entrance prompt is up.
+// The player's first press should not have to load and seek its opening frame.
+const entranceReady = prepareEntrance($<HTMLVideoElement>('entrance-video')).then(
+  () => {
+    pixelScenes.prepareEntrance();
+    return true;
+  },
+  () => false,
+);
 const cardMotion = createCardMotion();
 const cardFocus = createCardFocus($('card-focus'), () => sound.effect('inspect'));
 const readingOrb = createReadingOrb($<HTMLVideoElement>('reading-video'), (active, phase) =>
@@ -129,6 +139,7 @@ function setStage(next: Stage) {
   stage = next;
   document.body.dataset.stage = next;
   $('outside').hidden = next !== 'outside';
+  $('entry-status').hidden = true;
   $('skip-entry').hidden = next !== 'entering';
   $('inside').hidden = next === 'outside' || next === 'entering';
   $('question-form').hidden = next !== 'asking';
@@ -463,6 +474,7 @@ function schedulePoll(delay = 1800) {
   }, delay);
 }
 async function reconnect() {
+  if (entranceSession) return;
   clearError();
   try {
     syncSession(await client.session());
@@ -474,29 +486,42 @@ async function reconnect() {
   }
 }
 async function enter() {
-  if (busy || stage !== 'outside') return;
-  busy = true;
+  if (busy || entranceRequest || stage !== 'outside') return;
+  $('enter').hidden = true;
+  $('entry-status').hidden = false;
+  $('skip-entry').hidden = false;
+  // Session latency must not hold the player outside. Await it before enabling
+  // questions inside, with an explicit reconnect path if the request fails.
+  entranceSession = client.session().then(
+    (value) => {
+      syncSession(value);
+      return { ok: true as const };
+    },
+    (error: unknown) => ({ ok: false as const, error }),
+  );
+  const request = new AbortController();
+  entranceRequest = request;
   try {
-    syncSession(await client.session());
-    try {
-      sessionStorage.setItem('blue-veil-entered', '1');
-    } catch {
-      /* Resume also works through the server cookie. */
-    }
     if (reduced.matches || session?.activeReading) {
       await completeEntry();
       return;
     }
     const video = $<HTMLVideoElement>('entrance-video');
-    const request = new AbortController();
-    entranceRequest = request;
-    $('enter').hidden = true;
-    $('skip-entry').hidden = false;
+    let matched = false;
     try {
-      await prepareEntrance(video, request.signal);
-      pixelScenes.prepareEntrance();
-      // Keep the curtains moving until their opening matches the walking clip.
-      await waitForCurtainMatch($<HTMLVideoElement>('exterior-video'), request.signal);
+      const ready = await entranceReady;
+      if (request.signal.aborted) return;
+      if (!ready) {
+        await completeEntry();
+        return;
+      }
+      // Keep curtains moving, use the matching phase when it is nearby, and
+      // otherwise blend smoothly without waiting through the full idle loop.
+      matched = await waitForCurtainMatch(
+        $<HTMLVideoElement>('exterior-video'),
+        request.signal,
+        () => document.hidden || menu.open || info.open,
+      );
     } catch {
       if (request.signal.aborted) return;
       await completeEntry();
@@ -507,6 +532,9 @@ async function enter() {
       return;
     }
     entranceBlending = true;
+    document
+      .querySelector<HTMLElement>('.entrance-scene')!
+      .style.setProperty('--entry-blend-duration', matched ? '0.25s' : '0.65s');
     setStage('entering');
     // Both clips keep moving during the short blend at the matched curtain phase.
     entranceAnimations = document.querySelector('.entrance-scene')!.getAnimations();
@@ -528,25 +556,36 @@ async function enter() {
   } catch (e) {
     showError(e);
   } finally {
-    entranceRequest = undefined;
-    busy = false;
+    if (entranceRequest === request) entranceRequest = undefined;
   }
 }
 async function completeEntry() {
   if (stage !== 'entering' && stage !== 'outside') return;
   entranceRequest?.abort();
   setStage('asking');
+  $('question-form').hidden = true;
+  say('Come closer. The reader is waiting…', false);
   try {
+    const connected = await entranceSession;
+    if (connected && !connected.ok) throw connected.error;
+    try {
+      sessionStorage.setItem('blue-veil-entered', '1');
+    } catch {
+      /* Resume also works through the server cookie. */
+    }
     if (session?.activeReading) await acceptReading(await client.read(session.activeReading));
     else showAsking();
   } catch (e) {
-    showAsking();
+    if (session) showAsking();
+    else say('The connection slipped away. Reconnect when you are ready.', false);
     showError(e);
+  } finally {
+    entranceSession = undefined;
   }
 }
 async function submitQuestion(event: SubmitEvent) {
   event.preventDefault();
-  if (busy) return;
+  if (busy || entranceSession || !session) return;
   const question = $<HTMLTextAreaElement>('question').value.trim();
   if (Array.from(question).length < 3 || Array.from(question).length > 500) {
     showError(new Error('Ask a question between 3 and 500 characters.'));
@@ -782,6 +821,10 @@ document.addEventListener('keydown', (event) => {
   )
     return;
   if (event.code !== 'Space') return;
+  if (event.repeat && (stage === 'outside' || stage === 'entering')) {
+    event.preventDefault();
+    return;
+  }
   if ((event.target as Element).closest?.('a')) return;
   const button = (event.target as Element).closest?.('button');
   if (button && !['enter', 'continue-reading', 'skip-entry'].includes(button.id)) return;

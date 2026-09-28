@@ -4,6 +4,9 @@ export const ENTRANCE_START = 16 / 24;
 // Compared over six consecutive frames: the curtain opening and movement here
 // most closely match the clear beginning of the supplied walking clip.
 export const CURTAIN_MATCH = 112 / 24;
+// Prefer the matching phase, but never leave a working entrance feeling inert
+// for another whole curtain cycle. A longer blend covers an unmatched phase.
+export const CURTAIN_WAIT_MS = 750;
 
 function waitForFrame(video: HTMLVideoElement, ready: () => boolean, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
@@ -53,39 +56,44 @@ export async function prepareEntrance(video: HTMLVideoElement, signal?: AbortSig
   );
 }
 
-export function waitForCurtainMatch(video: HTMLVideoElement, signal: AbortSignal) {
+export function waitForCurtainMatch(
+  video: HTMLVideoElement,
+  signal: AbortSignal,
+  isPaused = () => document.hidden,
+) {
   signal.throwIfAborted();
-  if (video.error || !video.videoWidth) return Promise.resolve();
-  return new Promise<void>((resolve, reject) => {
+  if (video.error || !video.videoWidth) return Promise.resolve(false);
+  return new Promise<boolean>((resolve, reject) => {
     let previous: number | undefined;
     let frame = 0;
-    let lastFrameAt = performance.now();
+    let waited = 0;
+    let lastTick = performance.now();
     const useVideoFrames = typeof video.requestVideoFrameCallback === 'function';
     const cleanup = () => {
       if (useVideoFrames) video.cancelVideoFrameCallback(frame);
       else cancelAnimationFrame(frame);
-      clearInterval(stall);
+      clearInterval(deadline);
       signal.removeEventListener('abort', abort);
-      video.removeEventListener('error', done);
+      video.removeEventListener('error', fail);
     };
-    const done = () => {
+    const done = (matched: boolean) => {
       cleanup();
-      resolve();
+      resolve(matched);
     };
+    const fail = () => done(false);
     const abort = () => {
       cleanup();
       reject(signal.reason);
     };
     const sample = (time: number) => {
-      if (time !== previous) lastFrameAt = performance.now();
-      if (!video.paused && !video.seeking && !document.hidden) {
+      if (!video.paused && !video.seeking && !isPaused()) {
         const crossed =
           previous !== undefined &&
           (time >= previous
             ? previous < CURTAIN_MATCH && time >= CURTAIN_MATCH
             : previous < CURTAIN_MATCH || time >= CURTAIN_MATCH);
         if (crossed || Math.abs(time - CURTAIN_MATCH) < 1 / 48) {
-          done();
+          done(true);
           return;
         }
         previous = time;
@@ -97,14 +105,17 @@ export function waitForCurtainMatch(video: HTMLVideoElement, signal: AbortSignal
         ? video.requestVideoFrameCallback((_now, metadata) => sample(metadata.mediaTime))
         : requestAnimationFrame(() => sample(video.currentTime));
     };
-    // A failed/stalled idle decoder must not trap the player outside. Pausing
-    // the game doesn't count toward this fallback; Skip can also abort the wait.
-    const stall = setInterval(() => {
-      if (video.paused || document.hidden) lastFrameAt = performance.now();
-      else if (performance.now() - lastFrameAt > 8000) done();
-    }, 500);
+    // Measure visible, unpaused game time separately from video playback. A
+    // decoder that stays paused or stops delivering frames still reaches this
+    // fallback; opening the menu or hiding the tab does not spend the deadline.
+    const deadline = setInterval(() => {
+      const now = performance.now();
+      if (!isPaused()) waited += now - lastTick;
+      lastTick = now;
+      if (waited >= CURTAIN_WAIT_MS) done(false);
+    }, 25);
     signal.addEventListener('abort', abort, { once: true });
-    video.addEventListener('error', done, { once: true });
+    video.addEventListener('error', fail, { once: true });
     schedule();
   });
 }

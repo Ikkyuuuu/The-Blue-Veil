@@ -1,8 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-test('Space keeps curtains moving until their matching phase and through the blend', async ({
-  page,
-}) => {
+async function nativePlayback(page: Page) {
   await page.addInitScript(() => {
     // Test native playback timing independently of software WebGL throughput.
     // The other transition checks exercise the filtered scene composition.
@@ -16,6 +14,12 @@ test('Space keeps curtains moving until their matching phase and through the ble
       return Reflect.apply(original, this, [type, ...args]);
     } as typeof original;
   });
+}
+
+test('Space keeps curtains moving until a nearby matching phase and through the blend', async ({
+  page,
+}) => {
+  await nativePlayback(page);
   let release!: () => void;
   const ready = new Promise<void>((resolve) => (release = resolve));
   await page.route('**/assets/scenes/entrance-master.mp4*', async (route) => {
@@ -30,7 +34,9 @@ test('Space keeps curtains moving until their matching phase and through the ble
   const video = page.locator('#entrance-video');
   const idle = page.locator('#exterior-video');
   await expect.poll(() => idle.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0);
-  await idle.evaluate((v: HTMLVideoElement) => (v.currentTime = 2));
+  await expect
+    .poll(() => video.evaluate((v: HTMLVideoElement) => !v.seeking && v.readyState >= 2))
+    .toBe(true);
   await entrance.evaluate((scene: HTMLElement) => {
     scene.addEventListener('transitionrun', () => {
       if (document.body.dataset.stage !== 'entering') return;
@@ -44,7 +50,18 @@ test('Space keeps curtains moving until their matching phase and through the ble
       scene.dataset.held = 'true';
     });
   });
-  await page.keyboard.press('Space');
+  // Start the gesture in the seek callback so automation transport latency
+  // cannot move us past the deliberately narrow matching window.
+  await idle.evaluate(async (v: HTMLVideoElement) => {
+    const sought = new Promise<void>((resolve) =>
+      v.addEventListener('seeked', () => resolve(), { once: true }),
+    );
+    v.currentTime = 4.25;
+    await sought;
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true }),
+    );
+  });
   await expect(entrance).toHaveAttribute('data-held', 'true', { timeout: 12000 });
   expect(await video.evaluate((v: HTMLVideoElement) => v.readyState >= 2)).toBe(true);
   await expect(entrance).toHaveCSS('opacity', '0.5');
@@ -72,30 +89,107 @@ test('Space keeps curtains moving until their matching phase and through the ble
   await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
 });
 
-test('waiting for the next curtain cycle can be skipped without a late entrance', async ({
-  page,
-}) => {
+test('preparing the walk can be skipped without a late entrance', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#enter')).toBeVisible();
   const idle = page.locator('#exterior-video');
   await expect.poll(() => idle.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0);
   await idle.evaluate((v: HTMLVideoElement) => (v.currentTime = 6));
-  await page.keyboard.press('Space');
-  await expect(page.getByRole('button', { name: 'Skip the walk' })).toBeVisible();
-  await expect
-    .poll(() =>
-      page
-        .locator('#entrance-video')
-        .evaluate((v: HTMLVideoElement) => !v.seeking && v.currentTime > 0.6),
-    )
-    .toBe(true);
-  await expect(page.locator('body')).toHaveAttribute('data-stage', 'outside');
-  await page.getByRole('button', { name: 'Skip the walk' }).click();
+  // Skip in the same task, before either preparation or phase matching resolves.
+  await page.evaluate(() => {
+    document.getElementById('enter')!.click();
+    document.getElementById('skip-entry')!.click();
+  });
   await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
   await idle.evaluate((v: HTMLVideoElement) => (v.currentTime = 4.67));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(page.locator('body')).toHaveAttribute('data-stage', 'asking');
   await expect(page.locator('.entrance-scene')).toHaveCSS('opacity', '0');
+});
+
+test('one Space starts the walk promptly while a slow session connects', async ({ page }) => {
+  await nativePlayback(page);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let sessions = 0;
+  await page.route('**/api/session', async (route) => {
+    if (route.request().method() === 'POST') {
+      sessions++;
+      await held;
+    }
+    await route.continue();
+  });
+  try {
+    await page.goto('/');
+    await expect(page.locator('#enter')).toBeVisible();
+    await expect
+      .poll(() =>
+        page
+          .locator('#entrance-video')
+          .evaluate((v: HTMLVideoElement) => !v.seeking && v.readyState >= 2),
+      )
+      .toBe(true);
+    await page.locator('#exterior-video').evaluate((v: HTMLVideoElement) => (v.currentTime = 6));
+    const receipt = await page.evaluateHandle(() => {
+      const state = { pressed: 0, started: 0, acknowledged: false };
+      document.addEventListener('keydown', (event) => {
+        if (event.code !== 'Space' || state.pressed) return;
+        state.pressed = performance.now();
+        state.acknowledged = !document.getElementById('entry-status')!.hidden;
+      });
+      new MutationObserver(() => {
+        if (document.body.dataset.stage === 'entering' && !state.started)
+          state.started = performance.now();
+      }).observe(document.body, { attributes: true, attributeFilter: ['data-stage'] });
+      return state;
+    });
+    await page.keyboard.press('Space');
+    expect(await receipt.evaluate((state) => state.acknowledged)).toBe(true);
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'entering', { timeout: 2500 });
+    expect(await receipt.evaluate((state) => state.started - state.pressed)).toBeLessThan(1800);
+    await expect(page.locator('.entrance-scene')).toHaveCSS('transition-duration', '0.65s');
+    expect(sessions).toBe(1);
+    await expect(page.locator('#question-form')).toBeHidden();
+    // A held key must not immediately skip the walk on the next auto-repeat.
+    await page.evaluate(() =>
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: ' ',
+          code: 'Space',
+          repeat: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      ),
+    );
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'entering');
+    await page.getByRole('button', { name: 'Skip the walk' }).click();
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'asking');
+    await expect(page.locator('#question-form')).toBeHidden();
+    release();
+    await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
+    expect(sessions).toBe(1);
+  } finally {
+    release();
+  }
+});
+
+test('a failed entry connection offers a working reconnect inside the tent', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  let fail = true;
+  await page.route('**/api/session', (route) =>
+    fail
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
+      : route.continue(),
+  );
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Enter the tent' }).click();
+  await expect(page.locator('#error-box')).toBeVisible();
+  await expect(page.locator('#question-form')).toBeHidden();
+  fail = false;
+  await page.locator('#reconnect').click();
+  await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
+  await expect(page.locator('#error-box')).toBeHidden();
 });
 
 for (const finish of ['ended', 'skip'] as const) {
@@ -118,6 +212,9 @@ for (const finish of ['ended', 'skip'] as const) {
     if (finish === 'ended') await page.locator('#entrance-video').dispatchEvent('ended');
     else await page.getByRole('button', { name: 'Skip the walk' }).click();
     await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();
+    // Let the delayed question focus settle before freezing the composition;
+    // otherwise a blinking caret can change an otherwise identical screenshot.
+    await expect(page.getByRole('textbox', { name: 'Your question' })).toBeFocused();
     await page.locator('#speech').click();
     await page.locator('.world').evaluate((world) => {
       for (const animation of world.getAnimations({ subtree: true })) {
@@ -129,14 +226,22 @@ for (const finish of ['ended', 'skip'] as const) {
     await expect(page.locator('.exterior-scene')).toHaveCSS('opacity', '0');
     await expect(page.locator('.interior-scene')).toHaveCSS('opacity', '1');
     await expect(page.locator('.interior-scene')).toHaveClass(/pixel-ready/);
+    // Removing an invisible compositing layer can change a few antialiased
+    // pixels in the SVG toolbar on mobile. Compare the scene, excluding controls.
+    const mask = [page.locator('.game-controls')];
     const before = await page.screenshot({
+      mask,
       path: `.private/qa/entrance-fade-${test.info().project.name}-${finish}.png`,
     });
     // Removing the old tent entirely must not change even one composited pixel.
     await page.locator('.exterior-scene').evaluate((scene: HTMLElement) => {
       scene.style.display = 'none';
     });
-    expect((await page.screenshot()).equals(before)).toBe(true);
+    const after = await page.screenshot({
+      mask,
+      path: `.private/qa/entrance-fade-${test.info().project.name}-${finish}-without-exterior.png`,
+    });
+    expect(after.equals(before)).toBe(true);
     await entrance.evaluate((scene) => scene.getAnimations().forEach((a) => a.finish()));
     await expect(entrance).toHaveCSS('opacity', '0');
     await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible();

@@ -1,5 +1,13 @@
 # Validation
 
+## Responsive tent entry — 28 September 2026
+
+- The first Space press or tap is acknowledged immediately. The walking clip is prepared while the entrance prompt is visible, and session creation runs alongside the walk. Questions stay unavailable until the session is ready; connection failures offer Reconnect inside the tent.
+- Curtain matching waits at most 750 ms of active game time. A nearby matching frame retains the short blend; otherwise a 650 ms blend starts the walk while both clips continue moving. Menu pauses and hidden tabs suspend the wait. Holding Space does not accidentally skip the walk.
+- Five timing/cancellation unit cases and 14 focused Chromium cases passed across desktop/mobile emulation. Checks cover a deliberately delayed session, connection failure/retry, nearby curtain matching, cancellation, pause/resume, exterior-free exit fades, continuous loading handoff, and keyboard gameplay. The fade comparison excludes toolbar icons, whose antialiasing can change when Chromium removes an invisible compositing layer.
+- Production build/typecheck, changed-file formatting and diff checks passed. Physical-device review remains outstanding. Artwork, video masters and backend resources are unchanged.
+- Live verification passed after the frontend upload and CloudFront refresh. With the session response deliberately held, one Space press acknowledged immediately and started the walk in 768 ms. The question form waited for a successful connection; no browser errors or paid readings occurred.
+
 ## Pixel effect inside the loading blur — 28 September 2026
 
 - The tent is softened before Acid palette conversion, Bayer dithering and black edges. Two 300 × 168 GPU passes reuse the already-uploaded source frame; the temporary blur textures and framebuffers are released after the reveal. CSS blur is retained only for unavailable WebGL. Animation still uses one original video and the same canvas across the loading handoff.
